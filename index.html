@@ -18,79 +18,80 @@
             <section class="card">
                 <h2>Generate New Comment</h2>
                 <form id="commentForm">
-                    <div class="form-group">
-                        <label for="caseId">Case ID</label>
-                        <input type="text" id="caseId" placeholder="e.g., CASE-2024-001">
-                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="caseId">Case ID</label>
+                            <input type="text" id="caseId" placeholder="e.g., CASE-2024-001">
+                        </div>
 
-                    <div class="form-group">
-                        <label for="caseType">Case Type *</label>
-                        <select id="caseType" required>
-                            <option value="">-- Select Case Type --</option>
-                            <option value="pms">Post-Marketing Study (PMS)</option>
-                            <option value="lpPms">License Partner - Post-Marketing Study</option>
-                            <option value="clinicalTrial">Clinical Trial</option>
-                            <option value="lpClinicalTrial">License Partner - Clinical Trial</option>
-                            <option value="sponta">Spontaneous</option>
-                            <option value="lpSponta">License Partner - Spontaneous</option>
-                        </select>
-                    </div>
+                        <div class="form-group">
+                            <label for="caseType">Case Type *</label>
+                            <select id="caseType" required>
+                                <option value="">-- Select Case Type --</option>
+                                <option value="pms">Post-Marketing Study</option>
+                                <option value="clinicalTrial">Clinical Trial</option>
+                                <option value="spontaneous">Spontaneous</option>
+                            </select>
+                        </div>
 
-                    <div class="form-group" id="companyNameGroup" style="display: none;">
-                        <label for="companyName">License Partner Company Name *</label>
-                        <input type="text" id="companyName" placeholder="e.g., Partner Company Inc.">
-                    </div>
+                        <div class="form-group">
+                            <label for="relatedness">Assessment Result *</label>
+                            <select id="relatedness" required>
+                                <option value="">-- Select Assessment --</option>
+                                <option value="positive">Positive (Possible relationship)</option>
+                                <option value="negative">Negative (Unlikely relationship)</option>
+                            </select>
+                        </div>
 
-                    <div class="form-group">
-                        <label for="productNames">Product Name(s) *</label>
-                        <input type="text" id="productNames" required placeholder="e.g., Product X, Product Y">
-                        <small style="color: #64748b;">Separate multiple products with commas</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="events">Event(s) *</label>
-                        <input type="text" id="events" required placeholder="e.g., pyrexia, cough, rash">
-                        <small style="color: #64748b;">Separate multiple events with commas</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="relatedness">Assessment Result *</label>
-                        <select id="relatedness" required>
-                            <option value="">-- Select Assessment --</option>
-                            <option value="positive">Positive (Possible relationship)</option>
-                            <option value="negative">Negative (Unlikely relationship)</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Justification Templates (Optional)</label>
-                        <div class="checkbox-group">
+                        <div class="form-group checkbox-inline">
                             <label class="checkbox-label">
-                                <input type="checkbox" name="justification" value="medicalHistory">
-                                Medical History & Concomitant Medications
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" name="justification" value="temporalRelationship">
-                                Temporal Relationship
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" name="justification" value="dechallengeRechallenge">
-                                Dechallenge/Rechallenge
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" name="justification" value="alternativeEtiologies">
-                                Alternative Etiologies
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" name="justification" value="insufficientInformation">
-                                Insufficient Information
+                                <input type="checkbox" id="isLicensePartner">
+                                License Partner Case
                             </label>
                         </div>
-                    </div>
 
-                    <div class="form-group">
-                        <label for="additionalNotes">Additional Free Text</label>
-                        <textarea id="additionalNotes" rows="4" placeholder="Add any specific details, observations, or additional justification..."></textarea>
+                        <div class="form-group full-width">
+                            <label for="productNames">Product Name(s) *</label>
+                            <input type="text" id="productNames" required placeholder="e.g., Product X, Product Y">
+                            <small style="color: #64748b;">Separate multiple products with commas</small>
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label for="events">Event(s) *</label>
+                            <input type="text" id="events" required placeholder="e.g., pyrexia, cough, rash">
+                            <small style="color: #64748b;">Separate multiple events with commas</small>
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label>Justification Templates (Optional)</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="justification" value="medicalHistory">
+                                    Medical History & Concomitant Medications
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="justification" value="temporalRelationship">
+                                    Temporal Relationship
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="justification" value="dechallengeRechallenge">
+                                    Dechallenge/Rechallenge
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="justification" value="alternativeEtiologies">
+                                    Alternative Etiologies
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="justification" value="insufficientInformation">
+                                    Insufficient Information
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group full-width">
+                            <label for="additionalNotes">Additional Free Text</label>
+                            <textarea id="additionalNotes" rows="3" placeholder="Add any specific details, observations, or additional justification..."></textarea>
+                        </div>
                     </div>
 
                     <div class="button-group">
@@ -186,7 +187,7 @@
                         <span id="modalCaseType"></span>
                     </div>
                     <div class="detail-row">
-                        <strong>Company Name:</strong>
+                        <strong>Is License Partner:</strong>
                         <span id="modalCompanyName"></span>
                     </div>
                     <div class="detail-row">

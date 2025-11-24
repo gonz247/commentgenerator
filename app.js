@@ -1,6 +1,12 @@
 // Assessment Comment Generator - Main Application Logic
 
 // ========================
+// Constants
+// ========================
+
+const COMPANY_NAME = 'Similares'; // Change this to your company name
+
+// ========================
 // IndexedDB Database Setup
 // ========================
 
@@ -97,26 +103,14 @@ function getAssessmentById(id) {
 
 const commentTemplates = {
     pms: {
-        positive: "The company considers that there is a possibility that the {events} related to the {productNames}.",
-        negative: "The company has determined that it is unlikely that the {events} related to the {productNames}.",
-    },
-    lpPms: {
         positive: "{companyName} considers that there is a possibility that the {events} related to the {productNames}.",
         negative: "{companyName} has determined that it is unlikely that the {events} related to the {productNames}.",
     },
     clinicalTrial: {
-        positive: "The company considers that there is a possibility that the {events} related to the study {productNames}.",
-        negative: "The company has determined that it is unlikely that the {events} related to the study {productNames}.",
-    },
-    lpClinicalTrial: {
         positive: "{companyName} considers that there is a possibility that the {events} related to the study {productNames}.",
         negative: "{companyName} has determined that it is unlikely that the {events} related to the study {productNames}.",
     },
-    sponta: {
-        positive: "The company considers that there is a possibility that the {events} related to the {productNames}.",
-        negative: "The company has determined that it is unlikely that the {events} related to the {productNames}.",
-    },
-    lpSponta: {
+    spontaneous: {
         positive: "{companyName} considers that there is a possibility that the {events} related to the {productNames}.",
         negative: "{companyName} has determined that it is unlikely that the {events} related to the {productNames}.",
     },
@@ -133,7 +127,7 @@ const commentTemplates = {
     }
 };
 
-function generateComment(caseType, companyName, productNames, events, relatedness, justifications, additionalNotes) {
+function generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes) {
     // Get the main template
     let template = commentTemplates[caseType]?.[relatedness];
     
@@ -145,9 +139,12 @@ function generateComment(caseType, companyName, productNames, events, relatednes
     const formattedProducts = formatListForSentence(productNames);
     const formattedEvents = formatListForSentence(events);
 
+    // Determine company name based on LP status
+    const companyName = isLicensePartner ? COMPANY_NAME : 'The company';
+
     // Replace placeholders in main template
     let comment = template
-        .replace(/{companyName}/g, companyName || 'the company')
+        .replace(/{companyName}/g, companyName)
         .replace(/{productNames}/g, formattedProducts)
         .replace(/{events}/g, formattedEvents);
 
@@ -200,16 +197,14 @@ function formatDate(timestamp) {
     });
 }
 
-function formatCaseType(caseType) {
+function formatCaseType(caseType, isLicensePartner = false) {
     const caseTypeMap = {
         'pms': 'Post-Marketing Study',
-        'lpPms': 'LP - Post-Marketing Study',
         'clinicalTrial': 'Clinical Trial',
-        'lpClinicalTrial': 'LP - Clinical Trial',
-        'sponta': 'Spontaneous',
-        'lpSponta': 'LP - Spontaneous'
+        'spontaneous': 'Spontaneous'
     };
-    return caseTypeMap[caseType] || caseType;
+    const baseType = caseTypeMap[caseType] || caseType;
+    return isLicensePartner ? `LP - ${baseType}` : baseType;
 }
 
 function formatEvents(events) {
@@ -285,15 +280,15 @@ async function exportToCSV() {
         }
 
         // CSV headers
-        const headers = ['ID', 'Date', 'Case ID', 'Case Type', 'Company Name', 'Product Names', 'Events', 'Assessment', 'Justifications', 'Additional Notes', 'Generated Comment'];
+        const headers = ['ID', 'Date', 'Case ID', 'Case Type', 'Is License Partner', 'Product Names', 'Events', 'Assessment', 'Justifications', 'Additional Notes', 'Generated Comment'];
         
         // CSV rows
         const rows = assessments.map(a => [
             a.id,
             formatDate(a.timestamp),
             a.caseId || '',
-            formatCaseType(a.caseType),
-            a.companyName || '',
+            formatCaseType(a.caseType, a.isLicensePartner),
+            a.isLicensePartner ? 'Yes' : 'No',
             a.productNames,
             a.events,
             formatRelatedness(a.relatedness),
@@ -395,7 +390,7 @@ async function loadAndDisplayRecords(searchTerm = '', filterRelatedness = '') {
                 <tr>
                     <td>${formatDate(a.timestamp)}</td>
                     <td>${escapeHtml(a.caseId || 'N/A')}</td>
-                    <td>${formatCaseType(a.caseType)}</td>
+                    <td>${formatCaseType(a.caseType, a.isLicensePartner)}</td>
                     <td>${escapeHtml(a.productNames)}</td>
                     <td><span class="badge badge-${a.relatedness}">${formatRelatedness(a.relatedness)}</span></td>
                     <td>
@@ -427,8 +422,8 @@ async function viewAssessment(id) {
 
         document.getElementById('modalDate').textContent = formatDate(assessment.timestamp);
         document.getElementById('modalCaseId').textContent = assessment.caseId || 'N/A';
-        document.getElementById('modalCaseType').textContent = formatCaseType(assessment.caseType);
-        document.getElementById('modalCompanyName').textContent = assessment.companyName || 'N/A';
+        document.getElementById('modalCaseType').textContent = formatCaseType(assessment.caseType, assessment.isLicensePartner);
+        document.getElementById('modalCompanyName').textContent = assessment.isLicensePartner ? 'Yes' : 'No';
         document.getElementById('modalProduct').textContent = assessment.productNames;
         document.getElementById('modalEvents').textContent = assessment.events;
         document.getElementById('modalRelatedness').textContent = formatRelatedness(assessment.relatedness);
@@ -470,29 +465,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         await initDB();
         await loadAndDisplayRecords();
 
-        // Show/hide company name field based on case type
-        document.getElementById('caseType').addEventListener('change', (e) => {
-            const companyNameGroup = document.getElementById('companyNameGroup');
-            const companyNameInput = document.getElementById('companyName');
-            const isLicensePartner = e.target.value.startsWith('lp');
-            
-            if (isLicensePartner) {
-                companyNameGroup.style.display = 'block';
-                companyNameInput.required = true;
-            } else {
-                companyNameGroup.style.display = 'none';
-                companyNameInput.required = false;
-                companyNameInput.value = '';
-            }
-        });
-
         // Comment form submission
         document.getElementById('commentForm').addEventListener('submit', (e) => {
             e.preventDefault();
             
             const caseId = document.getElementById('caseId').value.trim();
             const caseType = document.getElementById('caseType').value;
-            const companyName = document.getElementById('companyName').value.trim();
+            const isLicensePartner = document.getElementById('isLicensePartner').checked;
             const productNames = document.getElementById('productNames').value.trim();
             const events = document.getElementById('events').value.trim();
             const relatedness = document.getElementById('relatedness').value;
@@ -503,14 +482,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .map(checkbox => checkbox.value);
 
             // Generate comment
-            const comment = generateComment(caseType, companyName, productNames, events, relatedness, justifications, additionalNotes);
+            const comment = generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes);
             
             // Store for saving later
             currentGeneratedComment = comment;
             currentAssessmentData = {
                 caseId,
                 caseType,
-                companyName,
+                isLicensePartner,
                 productNames,
                 events,
                 relatedness,
