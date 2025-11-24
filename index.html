@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assessment Comment Generator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📋 Assessment Comment Generator</h1>
+            <p class="subtitle">Generate and manage assessment comments based on case definitions</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Comment Generation Form -->
+            <section class="card">
+                <h2>Generate New Comment</h2>
+                <form id="commentForm">
+                    <div class="form-group">
+                        <label for="caseId">Case ID</label>
+                        <input type="text" id="caseId" placeholder="e.g., CASE-2024-001">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="productName">Product Name *</label>
+                        <input type="text" id="productName" required placeholder="e.g., Product X">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="event">Event</label>
+                        <input type="text" id="event" required placeholder="pyrexia, cough, rash...">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="relatedness">Relatedness to Product *</label>
+                        <select id="relatedness" required>
+                            <option value="">-- Select Relatedness --</option>
+                            <option value="related">Related</option>
+                            <option value="probably_related">Probably Related</option>
+                            <option value="possibly_related">Possibly Related</option>
+                            <option value="unlikely_related">Unlikely Related</option>
+                            <option value="unrelated">Unrelated</option>
+                            <option value="not_assessable">Not Assessable</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="additionalNotes">Additional Notes</label>
+                        <textarea id="additionalNotes" rows="3" placeholder="Optional additional context..."></textarea>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="submit" class="btn btn-primary">Generate Comment</button>
+                        <button type="button" id="clearForm" class="btn btn-secondary">Clear Form</button>
+                    </div>
+                </form>
+
+                <!-- Generated Comment Display -->
+                <div id="generatedCommentSection" class="generated-comment hidden">
+                    <h3>Generated Comment</h3>
+                    <div id="generatedCommentText" class="comment-display"></div>
+                    <div class="button-group">
+                        <button id="saveComment" class="btn btn-success">Save to Database</button>
+                        <button id="copyComment" class="btn btn-secondary">Copy to Clipboard</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Records Section -->
+            <section class="card">
+                <div class="section-header">
+                    <h2>Saved Assessments</h2>
+                    <div class="button-group">
+                        <button id="exportData" class="btn btn-secondary">Export to JSON</button>
+                        <button id="exportCSV" class="btn btn-secondary">Export to CSV</button>
+                        <label for="importFile" class="btn btn-secondary">
+                            Import Data
+                            <input type="file" id="importFile" accept=".json" style="display: none;">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Search and Filter -->
+                <div class="search-section">
+                    <input type="text" id="searchInput" placeholder="Search by Case ID, Product, or Event Type...">
+                    <select id="filterRelatedness">
+                        <option value="">All Relatedness</option>
+                        <option value="related">Related</option>
+                        <option value="probably_related">Probably Related</option>
+                        <option value="possibly_related">Possibly Related</option>
+                        <option value="unlikely_related">Unlikely Related</option>
+                        <option value="unrelated">Unrelated</option>
+                        <option value="not_assessable">Not Assessable</option>
+                    </select>
+                </div>
+
+                <!-- Records Table -->
+                <div class="table-container">
+                    <table id="recordsTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Case ID</th>
+                                <th>Product</th>
+                                <th>Event Type</th>
+                                <th>Relatedness</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsTableBody">
+                            <tr>
+                                <td colspan="6" class="no-records">No assessments saved yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="stats">
+                    <p>Total Records: <strong id="totalRecords">0</strong></p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Modal for viewing full comment -->
+        <div id="viewModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Assessment Details</h3>
+                    <button class="close-modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="detail-row">
+                        <strong>Date:</strong>
+                        <span id="modalDate"></span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Case ID:</strong>
+                        <span id="modalCaseId"></span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Product:</strong>
+                        <span id="modalProduct"></span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Event Type:</strong>
+                        <span id="modalEvents"></span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Relatedness:</strong>
+                        <span id="modalRelatedness"></span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Additional Notes:</strong>
+                        <span id="modalNotes"></span>
+                    </div>
+                    <div class="detail-row full-width">
+                        <strong>Generated Comment:</strong>
+                        <div id="modalComment" class="comment-display"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="modalCopy" class="btn btn-secondary">Copy Comment</button>
+                    <button class="btn btn-primary close-modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
