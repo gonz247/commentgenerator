@@ -150,7 +150,7 @@ function generateComment(caseType, isLicensePartner, productNames, events, relat
 
     // Add justifications if selected
     if (justifications && justifications.length > 0) {
-        comment += "\n\n";
+        comment += " ";
         justifications.forEach((justKey, index) => {
             if (commentTemplates.justifications[justKey]) {
                 comment += commentTemplates.justifications[justKey];
@@ -163,7 +163,7 @@ function generateComment(caseType, isLicensePartner, productNames, events, relat
 
     // Add additional free text if provided
     if (additionalNotes && additionalNotes.trim()) {
-        comment += `\n\n${additionalNotes.trim()}`;
+        comment += ` ${additionalNotes.trim()}`;
     }
 
     return comment;

@@ -1,36 +1,40 @@
 # Assessment Comment Generator
 
-A lightweight, self-contained web application for generating assessment comments based on case definitions, event types, and product relatedness. **No installation required** - runs entirely in your browser!
+A lightweight, self-contained web application for generating assessment comments based on case definitions, events, and product relatedness. **No installation required** - runs entirely in your browser!
 
 ## 🌟 Features
 
-- **Template-Based Comment Generation**: Pre-configured templates for various event types and relatedness levels
+- **Template-Based Comment Generation**: Pre-configured templates for case types with customizable justifications
+- **Multi-Product & Multi-Event Support**: Handle multiple products and events in a single assessment
 - **Local Database Storage**: Uses IndexedDB to save all assessments locally in your browser
-- **Search & Filter**: Quickly find past assessments by case ID, product name, or event type
+- **Search & Filter**: Quickly find past assessments by case ID, product name, or events
 - **Export/Import**: Backup your data to JSON or CSV files
 - **No Installation**: Just double-click the HTML file and start working
 - **100% Offline**: Works completely offline after opening
 - **No .exe Files**: Perfect for restricted VM environments
+- **Compact Grid Layout**: Efficient form design minimizes scrolling
 
-## 📋 Supported Event Types
+## 📋 Case Types
 
-- Adverse Reaction
-- Medication Error
-- Product Quality Issue
-- Lack of Efficacy
-- Overdose
-- Misuse
-- Off-Label Use
-- Other
+- **Post-Marketing Study (PMS)**
+- **Clinical Trial**
+- **Spontaneous**
 
-## 🎯 Relatedness Levels
+Each case type can be marked as a **License Partner** case using the checkbox.
 
-- Related
-- Probably Related
-- Possibly Related
-- Unlikely Related
-- Unrelated
-- Not Assessable
+## 🎯 Assessment Results
+
+- **Positive**: Possibility that events are related to products
+- **Negative**: Unlikely that events are related to products
+
+## 📝 Justification Templates (Optional)
+
+Select one or more pre-written justifications to append to your comment:
+- Medical History & Concomitant Medications
+- Temporal Relationship
+- Dechallenge/Rechallenge
+- Alternative Etiologies
+- Insufficient Information
 
 ## 🚀 How to Use
 
@@ -43,11 +47,14 @@ A lightweight, self-contained web application for generating assessment comments
 ### Generating a Comment
 
 1. Fill in the form fields:
-   - **Case ID**: Enter your case identifier (e.g., CASE-2024-001)
-   - **Product Name**: Enter the product name
-   - **Event Type**: Select from dropdown
-   - **Relatedness**: Select the causality assessment
-   - **Additional Notes**: (Optional) Add any extra context
+   - **Case ID**: (Optional) Enter your case identifier (e.g., CASE-2024-001)
+   - **Case Type**: Select PMS, Clinical Trial, or Spontaneous
+   - **Assessment Result**: Choose Positive or Negative
+   - **License Partner**: Check if this is a license partner case
+   - **Product Name(s)**: Enter one or more products (comma-separated)
+   - **Event(s)**: Enter one or more events (comma-separated)
+   - **Justification Templates**: (Optional) Select relevant justifications
+   - **Additional Free Text**: (Optional) Add specific observations or details
 2. Click **Generate Comment**
 3. Review the generated comment
 4. Click **Save to Database** to store it, or **Copy to Clipboard** to use elsewhere
@@ -55,8 +62,8 @@ A lightweight, self-contained web application for generating assessment comments
 ### Viewing Saved Assessments
 
 - All saved assessments appear in the table below the form
-- Use the **search box** to filter by case ID, product, or event type
-- Use the **relatedness filter** to show only specific relatedness levels
+- Use the **search box** to filter by case ID, product, or events
+- Use the **assessment filter** to show only Positive or Negative assessments
 - Click the 👁️ icon to view full details
 - Click the 🗑️ icon to delete an assessment
 
@@ -76,6 +83,17 @@ A lightweight, self-contained web application for generating assessment comments
 1. Click **Import Data**
 2. Select a previously exported JSON file
 3. All records will be added to your database
+
+## 🏢 Company Name Configuration
+
+The company name is configured as a constant in the code. To change it:
+
+1. Open `app.js` in a text editor
+2. Find line 7: `const COMPANY_NAME = 'TBD Company Name';`
+3. Replace with your company name: `const COMPANY_NAME = 'Your Company Inc.';`
+4. Save the file
+
+This name is used when the "License Partner" checkbox is checked.
 
 ## 💾 Data Storage
 
@@ -129,34 +147,50 @@ Works in all modern browsers:
 ## 📝 Example Workflow
 
 1. **Morning**: Open `index.html` in your browser
-2. **Work**: Generate comments for 10 cases
-3. **Review**: Search and filter past assessments
-4. **End of Day**: Export to JSON as backup
-5. **Next Day**: Open same file, all data is still there!
+2. **Select Case Type**: Choose PMS, Clinical Trial, or Spontaneous
+3. **Enter Details**: Add products (e.g., "Drug A, Drug B") and events (e.g., "fever, headache")
+4. **Choose Assessment**: Select Positive or Negative
+5. **Add Justifications**: (Optional) Select relevant justification templates
+6. **Generate & Save**: Click Generate, review, and save to database
+7. **Review**: Search and filter past assessments
+8. **End of Day**: Export to JSON as backup
+9. **Next Day**: Open same file, all data is still there!
 
 ## 🔧 Customization
 
-### Adding New Templates
+### Changing Company Name
 
-Edit `app.js` and modify the `commentTemplates` object. Each event type has templates for different relatedness levels:
+Edit `app.js` line 7 to set your company name:
+
+```javascript
+const COMPANY_NAME = 'Your Company Name'; // Used for License Partner cases
+```
+
+### Adding/Modifying Templates
+
+Edit `app.js` and modify the `commentTemplates` object:
 
 ```javascript
 const commentTemplates = {
-    your_new_event_type: {
-        related: "Your template text with {caseId} and {productName} placeholders",
-        probably_related: "...",
-        // ... etc
-    }
+    pms: {
+        positive: "Template for positive PMS cases...",
+        negative: "Template for negative PMS cases..."
+    },
+    // Add more case types as needed
 };
 ```
 
-### Changing Event Types
+### Adding Justification Templates
 
-Edit the `<select>` options in `index.html`:
+Edit the `justifications` section in `commentTemplates`:
 
-```html
-<option value="your_event_type">Your Event Type</option>
+```javascript
+justifications: {
+    yourNewJustification: "Your justification text here...",
+}
 ```
+
+Then add the corresponding checkbox in `index.html`.
 
 ## 🆘 Troubleshooting
 
@@ -187,11 +221,14 @@ Edit the `<select>` options in `index.html`:
 [
   {
     "caseId": "CASE-2024-001",
-    "productName": "Product X",
-    "eventType": "adverse_reaction",
-    "relatedness": "related",
-    "additionalNotes": "Patient history relevant",
-    "generatedComment": "Assessment of case...",
+    "caseType": "pms",
+    "isLicensePartner": false,
+    "productNames": "Product X, Product Y",
+    "events": "pyrexia, headache",
+    "relatedness": "positive",
+    "justifications": ["medicalHistory", "temporalRelationship"],
+    "additionalNotes": "Patient had concurrent condition",
+    "generatedComment": "The company considers that...",
     "timestamp": 1700000000000
   }
 ]
@@ -201,15 +238,17 @@ Edit the `<select>` options in `index.html`:
 
 | Feature | Description |
 |---------|-------------|
-| **Comment Generation** | Template-based, instant generation |
+| **Comment Generation** | Template-based with justification options |
+| **Multi-Product/Event** | Comma-separated lists with natural formatting |
 | **Database** | IndexedDB, stores locally |
 | **Search** | Real-time search across all fields |
-| **Filter** | Filter by relatedness level |
+| **Filter** | Filter by assessment result (Positive/Negative) |
 | **Export** | JSON (backup) or CSV (Excel) |
 | **Import** | Restore from JSON backups |
 | **View Details** | Modal popup with full assessment |
 | **Copy to Clipboard** | One-click copy functionality |
 | **Responsive** | Works on desktop and tablets |
+| **Compact Layout** | Grid design minimizes scrolling |
 
 ## ⚡ Performance
 
@@ -229,10 +268,12 @@ Edit the `<select>` options in `index.html`:
 ## 💡 Tips
 
 1. **Regular Backups**: Export to JSON weekly
-2. **Naming Convention**: Use consistent case ID formats
-3. **Search Shortcuts**: Use partial text for faster searching
-4. **Browser Choice**: Edge is pre-installed on Windows VMs
-5. **Multiple Versions**: Keep exported JSON files dated
+2. **Multiple Products/Events**: Use commas to separate items (e.g., "Drug A, Drug B, Drug C")
+3. **Justifications**: Select relevant templates to build comprehensive assessments
+4. **License Partner Cases**: Check the LP box to use the configured company name
+5. **Search Shortcuts**: Use partial text for faster searching
+6. **Browser Choice**: Edge is pre-installed on Windows VMs
+7. **Keep Exports Dated**: Name your JSON backups with dates for easy tracking
 
 ## 📞 Support
 
@@ -248,14 +289,22 @@ This is an internal tool for assessment comment generation. Use in accordance wi
 
 ## 🔄 Version History
 
+**Version 2.0** (November 2025)
+- Simplified case type structure (3 types: PMS, Clinical Trial, Spontaneous)
+- License Partner checkbox instead of separate case types
+- Multi-product and multi-event support
+- Configurable company name constant
+- Justification template system
+- Grid layout for compact form design
+- Positive/Negative assessment classification
+- Enhanced search and filtering
+
 **Version 1.0** (November 2025)
 - Initial release
-- 8 event types with comprehensive templates
-- 6 relatedness levels
+- Basic template system
 - IndexedDB storage
 - JSON/CSV export
 - Search and filter functionality
-- Responsive design
 
 ---
 
