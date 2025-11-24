@@ -24,31 +24,73 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="productName">Product Name *</label>
-                        <input type="text" id="productName" required placeholder="e.g., Product X">
+                        <label for="caseType">Case Type *</label>
+                        <select id="caseType" required>
+                            <option value="">-- Select Case Type --</option>
+                            <option value="pms">Post-Marketing Study (PMS)</option>
+                            <option value="lpPms">License Partner - Post-Marketing Study</option>
+                            <option value="clinicalTrial">Clinical Trial</option>
+                            <option value="lpClinicalTrial">License Partner - Clinical Trial</option>
+                            <option value="sponta">Spontaneous</option>
+                            <option value="lpSponta">License Partner - Spontaneous</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="companyNameGroup" style="display: none;">
+                        <label for="companyName">License Partner Company Name *</label>
+                        <input type="text" id="companyName" placeholder="e.g., Partner Company Inc.">
                     </div>
 
                     <div class="form-group">
-                        <label for="event">Event</label>
-                        <input type="text" id="event" required placeholder="pyrexia, cough, rash...">
+                        <label for="productNames">Product Name(s) *</label>
+                        <input type="text" id="productNames" required placeholder="e.g., Product X, Product Y">
+                        <small style="color: #64748b;">Separate multiple products with commas</small>
                     </div>
 
                     <div class="form-group">
-                        <label for="relatedness">Relatedness to Product *</label>
+                        <label for="events">Event(s) *</label>
+                        <input type="text" id="events" required placeholder="e.g., pyrexia, cough, rash">
+                        <small style="color: #64748b;">Separate multiple events with commas</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="relatedness">Assessment Result *</label>
                         <select id="relatedness" required>
-                            <option value="">-- Select Relatedness --</option>
-                            <option value="related">Related</option>
-                            <option value="probably_related">Probably Related</option>
-                            <option value="possibly_related">Possibly Related</option>
-                            <option value="unlikely_related">Unlikely Related</option>
-                            <option value="unrelated">Unrelated</option>
-                            <option value="not_assessable">Not Assessable</option>
+                            <option value="">-- Select Assessment --</option>
+                            <option value="positive">Positive (Possible relationship)</option>
+                            <option value="negative">Negative (Unlikely relationship)</option>
                         </select>
                     </div>
 
                     <div class="form-group">
-                        <label for="additionalNotes">Additional Notes</label>
-                        <textarea id="additionalNotes" rows="3" placeholder="Optional additional context..."></textarea>
+                        <label>Justification Templates (Optional)</label>
+                        <div class="checkbox-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="justification" value="medicalHistory">
+                                Medical History & Concomitant Medications
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="justification" value="temporalRelationship">
+                                Temporal Relationship
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="justification" value="dechallengeRechallenge">
+                                Dechallenge/Rechallenge
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="justification" value="alternativeEtiologies">
+                                Alternative Etiologies
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" name="justification" value="insufficientInformation">
+                                Insufficient Information
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="additionalNotes">Additional Free Text</label>
+                        <textarea id="additionalNotes" rows="4" placeholder="Add any specific details, observations, or additional justification..."></textarea>
                     </div>
 
                     <div class="button-group">
@@ -103,9 +145,9 @@
                             <tr>
                                 <th>Date</th>
                                 <th>Case ID</th>
-                                <th>Product</th>
-                                <th>Event Type</th>
-                                <th>Relatedness</th>
+                                <th>Case Type</th>
+                                <th>Product(s)</th>
+                                <th>Assessment</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -140,16 +182,28 @@
                         <span id="modalCaseId"></span>
                     </div>
                     <div class="detail-row">
-                        <strong>Product:</strong>
+                        <strong>Case Type:</strong>
+                        <span id="modalCaseType"></span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Company Name:</strong>
+                        <span id="modalCompanyName"></span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Product(s):</strong>
                         <span id="modalProduct"></span>
                     </div>
                     <div class="detail-row">
-                        <strong>Event Type:</strong>
+                        <strong>Event(s):</strong>
                         <span id="modalEvents"></span>
                     </div>
                     <div class="detail-row">
-                        <strong>Relatedness:</strong>
+                        <strong>Assessment:</strong>
                         <span id="modalRelatedness"></span>
+                    </div>
+                    <div class="detail-row">
+                        <strong>Justifications:</strong>
+                        <span id="modalJustifications"></span>
                     </div>
                     <div class="detail-row">
                         <strong>Additional Notes:</strong>

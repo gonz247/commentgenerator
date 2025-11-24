@@ -33,7 +33,8 @@ function initDB() {
                 
                 // Create indexes for searching
                 objectStore.createIndex('caseId', 'caseId', { unique: false });
-                objectStore.createIndex('productName', 'productName', { unique: false });
+                objectStore.createIndex('caseType', 'caseType', { unique: false });
+                objectStore.createIndex('productNames', 'productNames', { unique: false });
                 objectStore.createIndex('events', 'events', { unique: false });
                 objectStore.createIndex('relatedness', 'relatedness', { unique: false });
                 objectStore.createIndex('timestamp', 'timestamp', { unique: false });
@@ -132,24 +133,56 @@ const commentTemplates = {
     }
 };
 
-function generateComment(productName, events, relatedness, additionalNotes) {
-    let template = commentTemplates[events]?.[relatedness];
+function generateComment(caseType, companyName, productNames, events, relatedness, justifications, additionalNotes) {
+    // Get the main template
+    let template = commentTemplates[caseType]?.[relatedness];
     
     if (!template) {
-        template = commentTemplates.other[relatedness];
+        return "Error: Invalid case type or relatedness selection.";
     }
 
-    // Replace placeholders
-    let comment = template
-        .replace(/{caseId}/g, caseId)
-        .replace(/{productName}/g, productName);
+    // Format product names and events for natural language
+    const formattedProducts = formatListForSentence(productNames);
+    const formattedEvents = formatListForSentence(events);
 
-    // Add additional notes if provided
+    // Replace placeholders in main template
+    let comment = template
+        .replace(/{companyName}/g, companyName || 'the company')
+        .replace(/{productNames}/g, formattedProducts)
+        .replace(/{events}/g, formattedEvents);
+
+    // Add justifications if selected
+    if (justifications && justifications.length > 0) {
+        comment += "\n\n";
+        justifications.forEach((justKey, index) => {
+            if (commentTemplates.justifications[justKey]) {
+                comment += commentTemplates.justifications[justKey];
+                if (index < justifications.length - 1) {
+                    comment += " ";
+                }
+            }
+        });
+    }
+
+    // Add additional free text if provided
     if (additionalNotes && additionalNotes.trim()) {
-        comment += `\n\nAdditional Notes: ${additionalNotes.trim()}`;
+        comment += `\n\n${additionalNotes.trim()}`;
     }
 
     return comment;
+}
+
+function formatListForSentence(itemsString) {
+    const items = itemsString.split(',').map(item => item.trim()).filter(item => item);
+    
+    if (items.length === 0) return '';
+    if (items.length === 1) return items[0];
+    if (items.length === 2) return `${items[0]} and ${items[1]}`;
+    
+    // For 3 or more items: "item1, item2, and item3"
+    const allButLast = items.slice(0, -1).join(', ');
+    const last = items[items.length - 1];
+    return `${allButLast}, and ${last}`;
 }
 
 // ========================
@@ -167,11 +200,20 @@ function formatDate(timestamp) {
     });
 }
 
+function formatCaseType(caseType) {
+    const caseTypeMap = {
+        'pms': 'Post-Marketing Study',
+        'lpPms': 'LP - Post-Marketing Study',
+        'clinicalTrial': 'Clinical Trial',
+        'lpClinicalTrial': 'LP - Clinical Trial',
+        'sponta': 'Spontaneous',
+        'lpSponta': 'LP - Spontaneous'
+    };
+    return caseTypeMap[caseType] || caseType;
+}
+
 function formatEvents(events) {
-    return events
-        .split('_')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
+    return events;
 }
 
 function formatRelatedness(relatedness) {
@@ -243,16 +285,19 @@ async function exportToCSV() {
         }
 
         // CSV headers
-        const headers = ['ID', 'Date', 'Case ID', 'Product Name', 'Events', 'Relatedness', 'Additional Notes', 'Generated Comment'];
+        const headers = ['ID', 'Date', 'Case ID', 'Case Type', 'Company Name', 'Product Names', 'Events', 'Assessment', 'Justifications', 'Additional Notes', 'Generated Comment'];
         
         // CSV rows
         const rows = assessments.map(a => [
             a.id,
             formatDate(a.timestamp),
-            a.caseId,
-            a.productName,
-            formatEvents(a.events),
+            a.caseId || '',
+            formatCaseType(a.caseType),
+            a.companyName || '',
+            a.productNames,
+            a.events,
             formatRelatedness(a.relatedness),
+            (a.justifications || []).join(', '),
             a.additionalNotes || '',
             a.generatedComment.replace(/\n/g, ' ')
         ]);
@@ -327,9 +372,10 @@ async function loadAndDisplayRecords(searchTerm = '', filterRelatedness = '') {
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             assessments = assessments.filter(a => 
-                a.caseId.toLowerCase().includes(term) ||
-                a.productName.toLowerCase().includes(term) ||
-                formatEvents(a.events).toLowerCase().includes(term)
+                (a.caseId && a.caseId.toLowerCase().includes(term)) ||
+                a.productNames.toLowerCase().includes(term) ||
+                a.events.toLowerCase().includes(term) ||
+                formatCaseType(a.caseType).toLowerCase().includes(term)
             );
         }
 
@@ -348,9 +394,9 @@ async function loadAndDisplayRecords(searchTerm = '', filterRelatedness = '') {
             tbody.innerHTML = assessments.map(a => `
                 <tr>
                     <td>${formatDate(a.timestamp)}</td>
-                    <td>${escapeHtml(a.caseId)}</td>
-                    <td>${escapeHtml(a.productName)}</td>
-                    <td>${formatEvents(a.events)}</td>
+                    <td>${escapeHtml(a.caseId || 'N/A')}</td>
+                    <td>${formatCaseType(a.caseType)}</td>
+                    <td>${escapeHtml(a.productNames)}</td>
                     <td><span class="badge badge-${a.relatedness}">${formatRelatedness(a.relatedness)}</span></td>
                     <td>
                         <button class="btn-icon" onclick="viewAssessment(${a.id})" title="View">👁️</button>
@@ -380,10 +426,13 @@ async function viewAssessment(id) {
         if (!assessment) return;
 
         document.getElementById('modalDate').textContent = formatDate(assessment.timestamp);
-        document.getElementById('modalCaseId').textContent = assessment.caseId;
-        document.getElementById('modalProduct').textContent = assessment.productName;
-        document.getElementById('modalEvents').textContent = formatEvents(assessment.events);
+        document.getElementById('modalCaseId').textContent = assessment.caseId || 'N/A';
+        document.getElementById('modalCaseType').textContent = formatCaseType(assessment.caseType);
+        document.getElementById('modalCompanyName').textContent = assessment.companyName || 'N/A';
+        document.getElementById('modalProduct').textContent = assessment.productNames;
+        document.getElementById('modalEvents').textContent = assessment.events;
         document.getElementById('modalRelatedness').textContent = formatRelatedness(assessment.relatedness);
+        document.getElementById('modalJustifications').textContent = (assessment.justifications || []).join(', ') || 'None';
         document.getElementById('modalNotes').textContent = assessment.additionalNotes || 'None';
         document.getElementById('modalComment').textContent = assessment.generatedComment;
 
@@ -421,26 +470,51 @@ document.addEventListener('DOMContentLoaded', async () => {
         await initDB();
         await loadAndDisplayRecords();
 
+        // Show/hide company name field based on case type
+        document.getElementById('caseType').addEventListener('change', (e) => {
+            const companyNameGroup = document.getElementById('companyNameGroup');
+            const companyNameInput = document.getElementById('companyName');
+            const isLicensePartner = e.target.value.startsWith('lp');
+            
+            if (isLicensePartner) {
+                companyNameGroup.style.display = 'block';
+                companyNameInput.required = true;
+            } else {
+                companyNameGroup.style.display = 'none';
+                companyNameInput.required = false;
+                companyNameInput.value = '';
+            }
+        });
+
         // Comment form submission
         document.getElementById('commentForm').addEventListener('submit', (e) => {
             e.preventDefault();
             
             const caseId = document.getElementById('caseId').value.trim();
-            const productName = document.getElementById('productName').value.trim();
-            const events = document.getElementById('events').value;
+            const caseType = document.getElementById('caseType').value;
+            const companyName = document.getElementById('companyName').value.trim();
+            const productNames = document.getElementById('productNames').value.trim();
+            const events = document.getElementById('events').value.trim();
             const relatedness = document.getElementById('relatedness').value;
             const additionalNotes = document.getElementById('additionalNotes').value.trim();
+            
+            // Get selected justifications
+            const justifications = Array.from(document.querySelectorAll('input[name="justification"]:checked'))
+                .map(checkbox => checkbox.value);
 
             // Generate comment
-            const comment = generateComment(caseId, productName, events, relatedness, additionalNotes);
+            const comment = generateComment(caseType, companyName, productNames, events, relatedness, justifications, additionalNotes);
             
             // Store for saving later
             currentGeneratedComment = comment;
             currentAssessmentData = {
                 caseId,
-                productName,
+                caseType,
+                companyName,
+                productNames,
                 events,
                 relatedness,
+                justifications,
                 additionalNotes,
                 generatedComment: comment,
                 timestamp: Date.now()
