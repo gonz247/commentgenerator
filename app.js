@@ -11,8 +11,10 @@ const COMPANY_NAME = 'Similares'; // Change this to your company name
 // ========================
 
 const DB_NAME = 'MR_Assessment_DB';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented for new stores
 const STORE_NAME = 'assessments';
+const PRODUCTS_STORE = 'products';
+const EVENTS_STORE = 'events';
 
 let db = null;
 
@@ -30,7 +32,7 @@ function initDB() {
         request.onupgradeneeded = (event) => {
             const db = event.target.result;
             
-            // Create object store if it doesn't exist
+            // Create assessments object store if it doesn't exist
             if (!db.objectStoreNames.contains(STORE_NAME)) {
                 const objectStore = db.createObjectStore(STORE_NAME, { 
                     keyPath: 'id', 
@@ -44,6 +46,20 @@ function initDB() {
                 objectStore.createIndex('events', 'events', { unique: false });
                 objectStore.createIndex('relatedness', 'relatedness', { unique: false });
                 objectStore.createIndex('timestamp', 'timestamp', { unique: false });
+            }
+
+            // Create products object store
+            if (!db.objectStoreNames.contains(PRODUCTS_STORE)) {
+                db.createObjectStore(PRODUCTS_STORE, { 
+                    keyPath: 'name' // Ensures uniqueness
+                });
+            }
+
+            // Create events object store
+            if (!db.objectStoreNames.contains(EVENTS_STORE)) {
+                db.createObjectStore(EVENTS_STORE, { 
+                    keyPath: 'name' // Ensures uniqueness
+                });
             }
         };
     });
@@ -59,8 +75,127 @@ function saveAssessment(assessment) {
         const objectStore = transaction.objectStore(STORE_NAME);
         const request = objectStore.add(assessment);
 
-        request.onsuccess = () => resolve(request.result);
+        request.onsuccess = () => {
+            // Save products and events to their respective stores
+            saveProductsFromAssessment(assessment.productNames);
+            saveEventsFromAssessment(assessment.events);
+            resolve(request.result);
+        };
         request.onerror = () => reject(request.error);
+    });
+}
+
+// Save products from comma-separated string
+function saveProductsFromAssessment(productNames) {
+    if (!productNames) return;
+    const products = productNames.split(',').map(p => p.trim()).filter(p => p);
+    products.forEach(name => saveProduct(name));
+}
+
+// Save events from comma-separated string
+function saveEventsFromAssessment(events) {
+    if (!events) return;
+    const eventList = events.split(',').map(e => e.trim()).filter(e => e);
+    eventList.forEach(name => saveEvent(name));
+}
+
+// Save a single product (uniqueness handled by keyPath)
+function saveProduct(name) {
+    if (!name) return;
+    const transaction = db.transaction([PRODUCTS_STORE], 'readwrite');
+    const objectStore = transaction.objectStore(PRODUCTS_STORE);
+    objectStore.put({ name: name });
+}
+
+// Save a single event (uniqueness handled by keyPath)
+function saveEvent(name) {
+    if (!name) return;
+    const transaction = db.transaction([EVENTS_STORE], 'readwrite');
+    const objectStore = transaction.objectStore(EVENTS_STORE);
+    objectStore.put({ name: name });
+}
+
+// Get all products alphabetically
+function getAllProducts() {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([PRODUCTS_STORE], 'readonly');
+        const objectStore = transaction.objectStore(PRODUCTS_STORE);
+        const request = objectStore.getAll();
+
+        request.onsuccess = () => {
+            const products = request.result.map(p => p.name).sort();
+            resolve(products);
+        };
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Get all events alphabetically
+function getAllEvents() {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([EVENTS_STORE], 'readonly');
+        const objectStore = transaction.objectStore(EVENTS_STORE);
+        const request = objectStore.getAll();
+
+        request.onsuccess = () => {
+            const events = request.result.map(e => e.name).sort();
+            resolve(events);
+        };
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Search products by partial name
+function searchProducts(query) {
+    return getAllProducts().then(products => {
+        if (!query) return products;
+        const lowerQuery = query.toLowerCase();
+        return products.filter(p => p.toLowerCase().includes(lowerQuery));
+    });
+}
+
+// Search events by partial name
+function searchEvents(query) {
+    return getAllEvents().then(events => {
+        if (!query) return events;
+        const lowerQuery = query.toLowerCase();
+        return events.filter(e => e.toLowerCase().includes(lowerQuery));
+    });
+}
+
+// Get unique case IDs with their most recent assessment
+function getUniqueCaseIds() {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_NAME], 'readonly');
+        const objectStore = transaction.objectStore(STORE_NAME);
+        const request = objectStore.getAll();
+
+        request.onsuccess = () => {
+            const assessments = request.result;
+            // Group by caseId and keep only the most recent for each
+            const caseMap = new Map();
+            assessments.forEach(assessment => {
+                const existing = caseMap.get(assessment.caseId);
+                if (!existing || assessment.timestamp > existing.timestamp) {
+                    caseMap.set(assessment.caseId, assessment);
+                }
+            });
+            // Sort case IDs alphabetically
+            const sortedCases = Array.from(caseMap.values()).sort((a, b) => 
+                a.caseId.localeCompare(b.caseId)
+            );
+            resolve(sortedCases);
+        };
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// Search case IDs by partial match
+function searchCaseIds(query) {
+    return getUniqueCaseIds().then(cases => {
+        if (!query) return cases;
+        const lowerQuery = query.toLowerCase();
+        return cases.filter(c => c.caseId.toLowerCase().includes(lowerQuery));
     });
 }
 
@@ -115,8 +250,9 @@ const commentTemplates = {
         negative: "{companyName} has determined that it is unlikely that the {events} related to the {productNames}.",
     },
     other: {
-        not_assessable: "Assessment of case {caseId} involving {productName}: The reported event cannot be adequately assessed due to insufficient information.",
-        not_applicable: "Assessment of case {caseId} involving {productName}: The reported event is not applicable for assessment in relation to the product.",
+        lp_not_assessable: "LP not assesable case, no comment provided.",
+        not_applicable: "Not applicable events for assessment in relation to the product. no comment provided.",
+        unblinding_placebo: "Blinding broken for study termination, placebo case, no comment provided.",
     },
     justifications: {
         medicalHistory: "The subject's medical history, including pre-existing conditions and concomitant medications, has been reviewed and considered in the assessment of the reported event.",
@@ -127,12 +263,17 @@ const commentTemplates = {
     }
 };
 
-function generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes) {
+function generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes, freeTextComment) {
     // Get the main template
     let template = commentTemplates[caseType]?.[relatedness];
     
     if (!template) {
         return "Error: Invalid case type or relatedness selection.";
+    }
+
+    // Add free text comment if provided
+    if (freeTextComment && freeTextComment.trim()) {
+        return freeTextComment.trim();
     }
 
     // Format product names and events for natural language
@@ -459,11 +600,200 @@ async function deleteRecord(id) {
 // ========================
 // Event Listeners
 // ========================
+// Autocomplete Functionality
+// ========================
+
+function setupAutocomplete(inputElement, searchFunction, onSelect) {
+    let currentFocus = -1;
+    let autocompleteList = null;
+
+    // Create autocomplete dropdown
+    function createDropdown(items, currentValue) {
+        closeAllLists();
+        if (!items.length) return;
+
+        autocompleteList = document.createElement('div');
+        autocompleteList.setAttribute('class', 'autocomplete-items');
+        inputElement.parentNode.appendChild(autocompleteList);
+
+        items.forEach((item, index) => {
+            const itemDiv = document.createElement('div');
+            const displayText = typeof item === 'string' ? item : item.caseId;
+            
+            // Highlight matching text
+            const lowerDisplay = displayText.toLowerCase();
+            const lowerValue = currentValue.toLowerCase();
+            const startIndex = lowerDisplay.indexOf(lowerValue);
+            
+            if (startIndex >= 0) {
+                itemDiv.innerHTML = displayText.substring(0, startIndex) +
+                    '<strong>' + displayText.substring(startIndex, startIndex + currentValue.length) + '</strong>' +
+                    displayText.substring(startIndex + currentValue.length);
+            } else {
+                itemDiv.textContent = displayText;
+            }
+
+            itemDiv.addEventListener('click', () => {
+                onSelect(item);
+                closeAllLists();
+            });
+
+            autocompleteList.appendChild(itemDiv);
+        });
+    }
+
+    // Close all autocomplete lists
+    function closeAllLists() {
+        const items = document.getElementsByClassName('autocomplete-items');
+        Array.from(items).forEach(item => item.parentNode.removeChild(item));
+        currentFocus = -1;
+    }
+
+    // Handle input changes
+    inputElement.addEventListener('input', async (e) => {
+        const value = e.target.value;
+        currentFocus = -1;
+
+        // Get the current word being typed (for comma-separated lists)
+        const cursorPos = e.target.selectionStart;
+        const textBeforeCursor = value.substring(0, cursorPos);
+        const lastComma = textBeforeCursor.lastIndexOf(',');
+        const currentWord = textBeforeCursor.substring(lastComma + 1).trim();
+
+        if (currentWord.length < 1) {
+            closeAllLists();
+            return;
+        }
+
+        try {
+            const results = await searchFunction(currentWord);
+            createDropdown(results.slice(0, 10), currentWord); // Limit to 10 items
+        } catch (error) {
+            console.error('Autocomplete error:', error);
+        }
+    });
+
+    // Handle keyboard navigation
+    inputElement.addEventListener('keydown', (e) => {
+        if (!autocompleteList) return;
+        const items = autocompleteList.getElementsByTagName('div');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            currentFocus++;
+            addActive(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            currentFocus--;
+            addActive(items);
+        } else if (e.key === 'Enter') {
+            if (currentFocus > -1 && items[currentFocus]) {
+                e.preventDefault();
+                items[currentFocus].click();
+            }
+        } else if (e.key === 'Escape') {
+            closeAllLists();
+        }
+    });
+
+    function addActive(items) {
+        if (!items.length) return;
+        removeActive(items);
+        if (currentFocus >= items.length) currentFocus = 0;
+        if (currentFocus < 0) currentFocus = items.length - 1;
+        items[currentFocus].classList.add('autocomplete-active');
+    }
+
+    function removeActive(items) {
+        Array.from(items).forEach(item => item.classList.remove('autocomplete-active'));
+    }
+
+    // Close lists when clicking outside
+    document.addEventListener('click', (e) => {
+        if (e.target !== inputElement) {
+            closeAllLists();
+        }
+    });
+}
+
+// Populate form with assessment data
+function populateFormWithAssessment(assessment) {
+    document.getElementById('caseId').value = assessment.caseId;
+    document.getElementById('caseType').value = assessment.caseType;
+    document.getElementById('isLicensePartner').checked = assessment.isLicensePartner;
+    document.getElementById('productNames').value = assessment.productNames;
+    document.getElementById('events').value = assessment.events;
+    document.getElementById('relatedness').value = assessment.relatedness;
+    document.getElementById('additionalNotes').value = assessment.additionalNotes || '';
+    
+    // Set justification checkboxes
+    document.querySelectorAll('input[name="justification"]').forEach(checkbox => {
+        checkbox.checked = assessment.justifications?.includes(checkbox.value) || false;
+    });
+
+    showNotification('Form populated with previous assessment data', 'success');
+}
+
+// ========================
+// Event Handlers
+// ========================
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         await initDB();
         await loadAndDisplayRecords();
+
+        // Setup autocomplete for inputs
+        const caseIdInput = document.getElementById('caseId');
+        const productsInput = document.getElementById('productNames');
+        const eventsInput = document.getElementById('events');
+
+        // Case ID autocomplete - retrieves and populates full assessment
+        setupAutocomplete(caseIdInput, searchCaseIds, (selectedAssessment) => {
+            populateFormWithAssessment(selectedAssessment);
+        });
+
+        // Products autocomplete - handles comma-separated lists
+        setupAutocomplete(productsInput, searchProducts, (selectedProduct) => {
+            const input = productsInput;
+            const value = input.value;
+            const cursorPos = input.selectionStart;
+            const textBeforeCursor = value.substring(0, cursorPos);
+            const textAfterCursor = value.substring(cursorPos);
+            const lastComma = textBeforeCursor.lastIndexOf(',');
+            
+            if (lastComma >= 0) {
+                // Replace the current word after the last comma
+                const beforeComma = textBeforeCursor.substring(0, lastComma + 1);
+                input.value = beforeComma + ' ' + selectedProduct + textAfterCursor;
+                input.selectionStart = input.selectionEnd = (beforeComma + ' ' + selectedProduct).length;
+            } else {
+                // Replace entire field
+                input.value = selectedProduct + textAfterCursor;
+                input.selectionStart = input.selectionEnd = selectedProduct.length;
+            }
+        });
+
+        // Events autocomplete - handles comma-separated lists
+        setupAutocomplete(eventsInput, searchEvents, (selectedEvent) => {
+            const input = eventsInput;
+            const value = input.value;
+            const cursorPos = input.selectionStart;
+            const textBeforeCursor = value.substring(0, cursorPos);
+            const textAfterCursor = value.substring(cursorPos);
+            const lastComma = textBeforeCursor.lastIndexOf(',');
+            
+            if (lastComma >= 0) {
+                // Replace the current word after the last comma
+                const beforeComma = textBeforeCursor.substring(0, lastComma + 1);
+                input.value = beforeComma + ' ' + selectedEvent + textAfterCursor;
+                input.selectionStart = input.selectionEnd = (beforeComma + ' ' + selectedEvent).length;
+            } else {
+                // Replace entire field
+                input.value = selectedEvent + textAfterCursor;
+                input.selectionStart = input.selectionEnd = selectedEvent.length;
+            }
+        });
 
         // Comment form submission
         document.getElementById('commentForm').addEventListener('submit', (e) => {
@@ -475,6 +805,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const productNames = document.getElementById('productNames').value.trim();
             const events = document.getElementById('events').value.trim();
             const relatedness = document.getElementById('relatedness').value;
+            const freeTextComment = document.getElementById('freeTextComment').value.trim();
             const additionalNotes = document.getElementById('additionalNotes').value.trim();
             
             // Get selected justifications
@@ -482,7 +813,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .map(checkbox => checkbox.value);
 
             // Generate comment
-            const comment = generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes);
+            const comment = generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes, freeTextComment);
             
             // Store for saving later
             currentGeneratedComment = comment;
@@ -495,6 +826,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 relatedness,
                 justifications,
                 additionalNotes,
+                freeTextComment,
                 generatedComment: comment,
                 timestamp: Date.now()
             };

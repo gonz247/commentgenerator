@@ -120,7 +120,11 @@ header h1 {
 /* ========================
    Forms
    ======================== */
-
+.form-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
 .form-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -697,4 +701,68 @@ tbody tr:hover {
     .generated-comment {
         page-break-inside: avoid;
     }
+}
+
+/* ========================
+   Autocomplete
+   ======================== */
+
+.form-group {
+    position: relative;
+}
+
+.autocomplete-items {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 999;
+    background-color: var(--bg-primary);
+    border: 2px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+    box-shadow: var(--shadow-md);
+    max-height: 250px;
+    overflow-y: auto;
+    margin-top: -2px;
+}
+
+.autocomplete-items div {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    transition: var(--transition);
+    font-size: 0.95rem;
+}
+
+.autocomplete-items div:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-items div:hover,
+.autocomplete-items div.autocomplete-active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.autocomplete-items div strong {
+    font-weight: 600;
+}
+
+.autocomplete-items::-webkit-scrollbar {
+    width: 8px;
+}
+
+.autocomplete-items::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+.autocomplete-items::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.autocomplete-items::-webkit-scrollbar-thumb:hover {
+    background: var(--secondary-color);
 }
