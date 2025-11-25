@@ -355,7 +355,16 @@ function formatEvents(events) {
 }
 
 function formatRelatedness(relatedness) {
-    return relatedness
+    const formatMap = {
+        'positive': 'Positive',
+        'negative': 'Negative',
+        'multiple': 'Multiple Assessments',
+        'lpNotAssessable': 'LP Not Assessable',
+        'notApplicable': 'Not Applicable',
+        'unblindingPlacebo': 'Unblinding Placebo'
+    };
+    
+    return formatMap[relatedness] || relatedness
         .split('_')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
@@ -393,107 +402,7 @@ function showNotification(message, type = 'info') {
 // Export/Import Functions
 // ========================
 
-async function exportToJSON() {
-    try {
-        const assessments = await getAllAssessments();
-        const dataStr = JSON.stringify(assessments, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        const url = URL.createObjectURL(dataBlob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `assessments_export_${Date.now()}.json`;
-        link.click();
-        
-        URL.revokeObjectURL(url);
-        showNotification('Data exported successfully!', 'success');
-    } catch (error) {
-        console.error('Export error:', error);
-        showNotification('Export failed', 'error');
-    }
-}
-
-async function exportToCSV() {
-    try {
-        const assessments = await getAllAssessments();
-        
-        if (assessments.length === 0) {
-            showNotification('No data to export', 'info');
-            return;
-        }
-
-        // CSV headers
-        const headers = ['ID', 'Date', 'Case ID', 'Case Type', 'Is License Partner', 'Product Names', 'Events', 'Assessment', 'Justifications', 'Additional Notes', 'Generated Comment'];
-        
-        // CSV rows
-        const rows = assessments.map(a => [
-            a.id,
-            formatDate(a.timestamp),
-            a.caseId || '',
-            formatCaseType(a.caseType, a.isLicensePartner),
-            a.isLicensePartner ? 'Yes' : 'No',
-            a.productNames,
-            a.events,
-            formatRelatedness(a.relatedness),
-            (a.justifications || []).join(', '),
-            a.additionalNotes || '',
-            a.generatedComment.replace(/\n/g, ' ')
-        ]);
-
-        // Escape CSV values
-        const escapeCsv = (value) => {
-            const str = String(value);
-            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                return `"${str.replace(/"/g, '""')}"`;
-            }
-            return str;
-        };
-
-        const csvContent = [
-            headers.map(escapeCsv).join(','),
-            ...rows.map(row => row.map(escapeCsv).join(','))
-        ].join('\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `assessments_export_${Date.now()}.csv`;
-        link.click();
-        
-        URL.revokeObjectURL(url);
-        showNotification('CSV exported successfully!', 'success');
-    } catch (error) {
-        console.error('CSV export error:', error);
-        showNotification('CSV export failed', 'error');
-    }
-}
-
-async function importFromJSON(file) {
-    try {
-        const text = await file.text();
-        const data = JSON.parse(text);
-        
-        if (!Array.isArray(data)) {
-            throw new Error('Invalid data format');
-        }
-
-        let imported = 0;
-        for (const item of data) {
-            // Remove id if it exists (let IndexedDB auto-generate)
-            const { id, ...itemWithoutId } = item;
-            await saveAssessment(itemWithoutId);
-            imported++;
-        }
-
-        await loadAndDisplayRecords();
-        showNotification(`Imported ${imported} records successfully!`, 'success');
-    } catch (error) {
-        console.error('Import error:', error);
-        showNotification('Import failed - invalid file format', 'error');
-    }
-}
+// Export/Import functions removed - will be reimplemented later
 
 // ========================
 // UI Functions
@@ -512,9 +421,10 @@ function createSubCommentSection() {
     section.className = 'sub-comment-section';
     section.dataset.subCommentId = subCommentId;
     
+    // Number will be set dynamically
     section.innerHTML = `
         <div class="sub-comment-header">
-            <h4>Comment Section #${subCommentId}</h4>
+            <h4>Comment Section #<span class="section-number">1</span></h4>
             <button type="button" class="btn-icon remove-sub-comment" data-id="${subCommentId}" title="Remove this section">
                 ✕
             </button>
@@ -604,6 +514,9 @@ function addSubCommentSection() {
     const removeBtn = section.querySelector('.remove-sub-comment');
     removeBtn.addEventListener('click', () => removeSubCommentSection(section.dataset.subCommentId));
     
+    // Renumber all sections
+    renumberSubComments();
+    
     return section;
 }
 
@@ -612,14 +525,19 @@ function removeSubCommentSection(subCommentId) {
     const section = document.querySelector(`[data-sub-comment-id="${subCommentId}"]`);
     if (section) {
         section.remove();
-        
-        // Renumber remaining sections
-        const allSections = document.querySelectorAll('.sub-comment-section');
-        allSections.forEach((sec, index) => {
-            const header = sec.querySelector('.sub-comment-header h4');
-            header.textContent = `Comment Section #${index + 1}`;
-        });
+        renumberSubComments();
     }
+}
+
+// Renumber all sub-comment sections sequentially
+function renumberSubComments() {
+    const allSections = document.querySelectorAll('.sub-comment-section');
+    allSections.forEach((sec, index) => {
+        const numberSpan = sec.querySelector('.section-number');
+        if (numberSpan) {
+            numberSpan.textContent = index + 1;
+        }
+    });
 }
 
 // Setup autocomplete for a sub-comment section
@@ -1108,6 +1026,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .filter(n => n)
                 .join(' | ');
             
+            // Determine relatedness: if all sub-comments have the same relatedness, use that; otherwise mark as 'multiple'
+            const uniqueRelatedness = [...new Set(subCommentData.map(d => d.relatedness))];
+            const finalRelatedness = uniqueRelatedness.length === 1 ? uniqueRelatedness[0] : 'multiple';
+            
             // Store for saving later
             currentGeneratedComment = comment;
             currentAssessmentData = {
@@ -1116,7 +1038,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 isLicensePartner,
                 productNames: allProducts,
                 events: allEvents,
-                relatedness: 'multiple', // Special marker for multi-assessment
+                relatedness: finalRelatedness,
                 justifications: allJustifications,
                 additionalNotes: allNotes,
                 freeTextComment: '',
@@ -1187,19 +1109,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const searchTerm = document.getElementById('searchInput').value;
             const filterRelatedness = e.target.value;
             loadAndDisplayRecords(searchTerm, filterRelatedness);
-        });
-
-        // Export buttons
-        document.getElementById('exportData').addEventListener('click', exportToJSON);
-        document.getElementById('exportCSV').addEventListener('click', exportToCSV);
-
-        // Import button
-        document.getElementById('importFile').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                importFromJSON(file);
-                e.target.value = ''; // Reset file input
-            }
         });
 
         // Modal close buttons
