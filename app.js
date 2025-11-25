@@ -6,6 +6,11 @@
 
 const COMPANY_NAME = 'Similares'; // Change this to your company name
 
+// Pagination settings
+const ITEMS_PER_PAGE = 10;
+let currentPage = 1;
+let allFilteredAssessments = [];
+
 // ========================
 // IndexedDB Database Setup
 // ========================
@@ -256,12 +261,22 @@ const commentTemplates = {
         lpNotAssessable: "LP not assesable case, no comment provided.",
         notApplicable: "Not applicable events for assessment in relation to the product. no comment provided.",
     },
-    justifications: {
+    negativeJustifications: {
         medicalHistory: "The subject's medical history, including pre-existing conditions and concomitant medications, has been reviewed and considered in the assessment of the reported event.",
-        temporalRelationship: "The temporal relationship between product administration and event onset has been evaluated to determine potential causality.",
-        dechallengeRechallenge: "Information regarding dechallenge and rechallenge has been analyzed to assess the likelihood of a causal relationship.",
+        noTemporalRelationship: "The temporal relationship between product administration and event onset has been evaluated to determine potential causality.",
+        dechallenge: "dechallenge is negative.",
+        rechallenge: "Information regarding dechallenge and rechallenge has been analyzed to assess the likelihood of a causal relationship.",
         alternativeEtiologies: "Potential alternative etiologies for the reported event have been explored and documented.",
         insufficientInformation: "The available information is insufficient to draw definitive conclusions regarding the relationship between the product and the reported event.",
+        notListed: "The reported event is not listed in the product's reference safety information, which has been taken into consideration during the assessment.",
+    },
+    positiveJustifications: {
+        noMedicalHistory: "The subject's medical history, including pre-existing conditions and concomitant medications, supports the assessment of a potential causal relationship between the product and the reported event.",
+        temporalRelationship: "The temporal relationship between product administration and event onset is consistent with a potential causal relationship.",
+        dechallenge: "Information regarding dechallenge and rechallenge supports the likelihood of a causal relationship.",
+        rechallenge: "Rechallenge information further supports the causal relationship between the product and the reported event.",
+        noAlternativeEtiologies: "No alternative etiologies for the reported event have been identified, strengthening the potential causal relationship.",
+        listed: "The reported event is listed in the product's reference safety information, supporting a potential causal relationship.",
     }
 };
 
@@ -693,34 +708,45 @@ function clearAllSubComments() {
 let currentGeneratedComment = null;
 let currentAssessmentData = null;
 
-async function loadAndDisplayRecords(searchTerm = '', filterRelatedness = '') {
+async function loadAndDisplayRecords(searchTerm = '', filterRelatedness = '', append = false) {
     try {
-        let assessments = await getAllAssessments();
-        
-        // Apply filters
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase();
-            assessments = assessments.filter(a => 
-                (a.caseId && a.caseId.toLowerCase().includes(term)) ||
-                a.productNames.toLowerCase().includes(term) ||
-                a.events.toLowerCase().includes(term) ||
-                formatCaseType(a.caseType).toLowerCase().includes(term)
-            );
-        }
+        // Only fetch and filter if not appending (new search/filter)
+        if (!append) {
+            currentPage = 1;
+            let assessments = await getAllAssessments();
+            
+            // Apply filters
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                assessments = assessments.filter(a => 
+                    (a.caseId && a.caseId.toLowerCase().includes(term)) ||
+                    a.productNames.toLowerCase().includes(term) ||
+                    a.events.toLowerCase().includes(term) ||
+                    formatCaseType(a.caseType).toLowerCase().includes(term)
+                );
+            }
 
-        if (filterRelatedness) {
-            assessments = assessments.filter(a => a.relatedness === filterRelatedness);
-        }
+            if (filterRelatedness) {
+                assessments = assessments.filter(a => a.relatedness === filterRelatedness);
+            }
 
-        // Sort by timestamp (newest first)
-        assessments.sort((a, b) => b.timestamp - a.timestamp);
+            // Sort by timestamp (newest first)
+            assessments.sort((a, b) => b.timestamp - a.timestamp);
+            
+            // Store filtered results
+            allFilteredAssessments = assessments;
+        }
 
         const tbody = document.getElementById('recordsTableBody');
+        const startIndex = 0;
+        const endIndex = currentPage * ITEMS_PER_PAGE;
+        const displayedAssessments = allFilteredAssessments.slice(startIndex, endIndex);
         
-        if (assessments.length === 0) {
+        if (allFilteredAssessments.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" class="no-records">No assessments found</td></tr>';
+            document.getElementById('paginationContainer').style.display = 'none';
         } else {
-            tbody.innerHTML = assessments.map(a => `
+            const rows = displayedAssessments.map(a => `
                 <tr>
                     <td>${formatDate(a.timestamp)}</td>
                     <td>${escapeHtml(a.caseId || 'N/A')}</td>
@@ -733,10 +759,21 @@ async function loadAndDisplayRecords(searchTerm = '', filterRelatedness = '') {
                     </td>
                 </tr>
             `).join('');
+            
+            tbody.innerHTML = rows;
+            
+            // Show/hide Load More button
+            const paginationContainer = document.getElementById('paginationContainer');
+            if (displayedAssessments.length < allFilteredAssessments.length) {
+                paginationContainer.style.display = 'block';
+            } else {
+                paginationContainer.style.display = 'none';
+            }
         }
 
-        // Update total count
-        document.getElementById('totalRecords').textContent = assessments.length;
+        // Update counts
+        document.getElementById('displayedRecords').textContent = displayedAssessments.length;
+        document.getElementById('totalRecords').textContent = allFilteredAssessments.length;
     } catch (error) {
         console.error('Error loading records:', error);
         showNotification('Error loading records', 'error');
@@ -747,6 +784,13 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function loadMore() {
+    currentPage++;
+    const searchTerm = document.getElementById('searchInput')?.value || '';
+    const filterRelatedness = document.getElementById('relatednessFilter')?.value || '';
+    loadAndDisplayRecords(searchTerm, filterRelatedness, true);
 }
 
 async function viewAssessment(id) {
@@ -1110,6 +1154,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const filterRelatedness = e.target.value;
             loadAndDisplayRecords(searchTerm, filterRelatedness);
         });
+
+        // Load More button
+        document.getElementById('loadMoreBtn').addEventListener('click', loadMore);
 
         // Modal close buttons
         document.querySelectorAll('.close-modal').forEach(btn => {

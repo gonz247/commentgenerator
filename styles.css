@@ -459,6 +459,20 @@ tbody tr:hover {
 }
 
 /* ========================
+   Pagination
+   ======================== */
+
+.pagination-container {
+    padding: 20px;
+    text-align: center;
+}
+
+#loadMoreBtn {
+    padding: 12px 30px;
+    font-size: 1rem;
+}
+
+/* ========================
    Modal
    ======================== */
 

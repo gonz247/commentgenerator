@@ -81,6 +81,10 @@
                         <option value="">All Assessments</option>
                         <option value="positive">Positive</option>
                         <option value="negative">Negative</option>
+                        <option value="multiple">Multiple</option>
+                        <option value="lpNotAssessable">LP Not Assessable</option>
+                        <option value="notApplicable">Not Applicable</option>
+                        <option value="unblindingPlacebo">Unblinding/Placebo</option>
                     </select>
                 </div>
 
@@ -105,8 +109,12 @@
                     </table>
                 </div>
 
+                <div class="pagination-container" id="paginationContainer" style="display: none;">
+                    <button id="loadMoreBtn" class="btn btn-primary">Load More</button>
+                </div>
+
                 <div class="stats">
-                    <p>Total Records: <strong id="totalRecords">0</strong></p>
+                    <p>Showing: <strong id="displayedRecords">0</strong> of <strong id="totalRecords">0</strong> records</p>
                 </div>
             </section>
         </div>
