@@ -238,6 +238,282 @@ function getAssessmentById(id) {
 }
 
 // ========================
+// CSV Export/Import Functions
+// ========================
+
+function escapeCSV(value) {
+    if (value == null) return '';
+    const stringValue = String(value);
+    if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+        return '"' + stringValue.replace(/"/g, '""') + '"';
+    }
+    return stringValue;
+}
+
+function downloadCSV(filename, csvContent) {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function parseCSV(csvText) {
+    const lines = [];
+    let currentLine = [];
+    let currentField = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < csvText.length; i++) {
+        const char = csvText[i];
+        const nextChar = csvText[i + 1];
+        
+        if (inQuotes) {
+            if (char === '"') {
+                if (nextChar === '"') {
+                    currentField += '"';
+                    i++;
+                } else {
+                    inQuotes = false;
+                }
+            } else {
+                currentField += char;
+            }
+        } else {
+            if (char === '"') {
+                inQuotes = true;
+            } else if (char === ',') {
+                currentLine.push(currentField);
+                currentField = '';
+            } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+                if (char === '\r') i++;
+                currentLine.push(currentField);
+                if (currentLine.some(field => field.trim() !== '')) {
+                    lines.push(currentLine);
+                }
+                currentLine = [];
+                currentField = '';
+            } else if (char !== '\r') {
+                currentField += char;
+            }
+        }
+    }
+    
+    if (currentField || currentLine.length > 0) {
+        currentLine.push(currentField);
+        if (currentLine.some(field => field.trim() !== '')) {
+            lines.push(currentLine);
+        }
+    }
+    
+    return lines;
+}
+
+// Export Assessments to CSV
+async function exportAssessments() {
+    try {
+        const assessments = await getAllAssessments();
+        if (assessments.length === 0) {
+            showNotification('No assessments to export', 'error');
+            return;
+        }
+        
+        const headers = ['ID', 'Case ID', 'Case Type', 'Is License Partner', 'Products', 'Events', 
+                        'Relatedness', 'Justifications', 'Additional Notes', 'Free Text Comment', 
+                        'Generated Comment', 'Timestamp', 'Sub Comments'];
+        
+        const rows = assessments.map(a => [
+            escapeCSV(a.id),
+            escapeCSV(a.caseId),
+            escapeCSV(a.caseType),
+            escapeCSV(a.isLicensePartner ? 'Yes' : 'No'),
+            escapeCSV(a.productNames),
+            escapeCSV(a.events),
+            escapeCSV(a.relatedness),
+            escapeCSV((a.justifications || []).join('; ')),
+            escapeCSV(a.additionalNotes),
+            escapeCSV(a.freeTextComment),
+            escapeCSV(a.generatedComment),
+            escapeCSV(new Date(a.timestamp).toISOString()),
+            escapeCSV(a.subComments ? JSON.stringify(a.subComments) : '')
+        ]);
+        
+        const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+        const filename = `assessments_${new Date().toISOString().split('T')[0]}.csv`;
+        
+        downloadCSV(filename, csvContent);
+        showNotification('Assessments exported successfully!', 'success');
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('Error exporting assessments', 'error');
+    }
+}
+
+// Export Products History to CSV
+async function exportProducts() {
+    try {
+        const products = await getAllProducts();
+        if (products.length === 0) {
+            showNotification('No products to export', 'error');
+            return;
+        }
+        
+        const headers = ['Product Name'];
+        const rows = products.map(p => [
+            escapeCSV(typeof p === 'string' ? p : p.name)
+        ]);
+        
+        const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+        const filename = `products_history_${new Date().toISOString().split('T')[0]}.csv`;
+        
+        downloadCSV(filename, csvContent);
+        showNotification('Products history exported successfully!', 'success');
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('Error exporting products', 'error');
+    }
+}
+
+// Export Events History to CSV
+async function exportEvents() {
+    try {
+        const events = await getAllEvents();
+        if (events.length === 0) {
+            showNotification('No events to export', 'error');
+            return;
+        }
+        
+        const headers = ['Event Name'];
+        const rows = events.map(e => [
+            escapeCSV(typeof e === 'string' ? e : e.name)
+        ]);
+        
+        const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+        const filename = `events_history_${new Date().toISOString().split('T')[0]}.csv`;
+        
+        downloadCSV(filename, csvContent);
+        showNotification('Events history exported successfully!', 'success');
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('Error exporting events', 'error');
+    }
+}
+
+// Import Assessments from CSV
+async function importAssessments(file) {
+    try {
+        const text = await file.text();
+        const rows = parseCSV(text);
+        
+        if (rows.length < 2) {
+            showNotification('Invalid CSV file', 'error');
+            return;
+        }
+        
+        const headers = rows[0];
+        const dataRows = rows.slice(1);
+        
+        let importCount = 0;
+        for (const row of dataRows) {
+            if (row.length < 12) continue; // Minimum required fields
+            
+            let subComments = [];
+            try {
+                if (row[12]) {
+                    subComments = JSON.parse(row[12]);
+                }
+            } catch (e) {
+                console.warn('Could not parse subComments for row:', e);
+            }
+            
+            const assessment = {
+                caseId: row[1],
+                caseType: row[2],
+                isLicensePartner: row[3].toLowerCase() === 'yes',
+                productNames: row[4],
+                events: row[5],
+                relatedness: row[6],
+                justifications: row[7] ? row[7].split('; ').filter(j => j) : [],
+                additionalNotes: row[8],
+                freeTextComment: row[9],
+                generatedComment: row[10],
+                timestamp: row[11] ? new Date(row[11]).getTime() : Date.now(),
+                subComments: subComments
+            };
+            
+            await saveAssessment(assessment);
+            importCount++;
+        }
+        
+        await loadAndDisplayRecords();
+        showNotification(`Successfully imported ${importCount} assessment(s)!`, 'success');
+    } catch (error) {
+        console.error('Import error:', error);
+        showNotification('Error importing assessments', 'error');
+    }
+}
+
+// Import Products from CSV
+async function importProducts(file) {
+    try {
+        const text = await file.text();
+        const rows = parseCSV(text);
+        
+        if (rows.length < 2) {
+            showNotification('Invalid CSV file', 'error');
+            return;
+        }
+        
+        const dataRows = rows.slice(1);
+        let importCount = 0;
+        
+        for (const row of dataRows) {
+            if (row.length < 1 || !row[0]) continue;
+            
+            await saveProduct(row[0]);
+            importCount++;
+        }
+        
+        showNotification(`Successfully imported ${importCount} product(s)!`, 'success');
+    } catch (error) {
+        console.error('Import error:', error);
+        showNotification('Error importing products', 'error');
+    }
+}
+
+// Import Events from CSV
+async function importEvents(file) {
+    try {
+        const text = await file.text();
+        const rows = parseCSV(text);
+        
+        if (rows.length < 2) {
+            showNotification('Invalid CSV file', 'error');
+            return;
+        }
+        
+        const dataRows = rows.slice(1);
+        let importCount = 0;
+        
+        for (const row of dataRows) {
+            if (row.length < 1 || !row[0]) continue;
+            
+            await saveEvent(row[0]);
+            importCount++;
+        }
+        
+        showNotification(`Successfully imported ${importCount} event(s)!`, 'success');
+    } catch (error) {
+        console.error('Import error:', error);
+        showNotification('Error importing events', 'error');
+    }
+}
+
+// ========================
 // Comment Template Engine
 // ========================
 
@@ -745,7 +1021,7 @@ function generateCombinedComment() {
     });
     
     // Join comments with paragraph breaks
-    return comments.join('\n\n');
+    return comments.join('\n');
 }
 
 // Clear all sub-comment sections
@@ -1030,14 +1306,18 @@ function populateFormWithAssessment(assessment) {
             section.querySelector(`#freeTextComment-${subCommentId}`).value = subData.freeText || '';
             section.querySelector(`#additionalNotes-${subCommentId}`).value = subData.additionalNotes || '';
             
-            // Set justifications
-            subData.justifications?.forEach(justValue => {
-                const checkbox = section.querySelector(`.sub-justification[data-sub-id="${subCommentId}"][value="${justValue}"]`);
-                if (checkbox) checkbox.checked = true;
-            });
+            // Update justification options based on relatedness
+            updateJustificationOptions(subCommentId, subData.relatedness);
             
-            // Update preview
-            updateSubCommentPreview(subCommentId);
+            // Set justifications after options are created
+            setTimeout(() => {
+                subData.justifications?.forEach(justValue => {
+                    const checkbox = section.querySelector(`.sub-justification[data-sub-id="${subCommentId}"][value="${justValue}"]`);
+                    if (checkbox) checkbox.checked = true;
+                });
+                // Update preview
+                updateSubCommentPreview(subCommentId);
+            }, 0);
         });
     } else {
         // Legacy assessment without sub-comments - create one sub-comment with all data
@@ -1050,14 +1330,18 @@ function populateFormWithAssessment(assessment) {
         section.querySelector(`#freeTextComment-${subCommentId}`).value = assessment.freeTextComment || '';
         section.querySelector(`#additionalNotes-${subCommentId}`).value = assessment.additionalNotes || '';
         
-        // Set justifications
-        assessment.justifications?.forEach(justValue => {
-            const checkbox = section.querySelector(`.sub-justification[data-sub-id="${subCommentId}"][value="${justValue}"]`);
-            if (checkbox) checkbox.checked = true;
-        });
+        // Update justification options based on relatedness
+        updateJustificationOptions(subCommentId, assessment.relatedness);
         
-        // Update preview
-        updateSubCommentPreview(subCommentId);
+        // Set justifications after options are created
+        setTimeout(() => {
+            assessment.justifications?.forEach(justValue => {
+                const checkbox = section.querySelector(`.sub-justification[data-sub-id="${subCommentId}"][value="${justValue}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+            // Update preview
+            updateSubCommentPreview(subCommentId);
+        }, 0);
     }
 
     showNotification('Form populated with previous assessment data', 'success');
@@ -1211,6 +1495,86 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Load More button
         document.getElementById('loadMoreBtn').addEventListener('click', loadMore);
+
+        // Export buttons
+        document.getElementById('exportAssessments').addEventListener('click', (e) => {
+            e.preventDefault();
+            exportAssessments();
+        });
+        
+        document.getElementById('exportProducts').addEventListener('click', (e) => {
+            e.preventDefault();
+            exportProducts();
+        });
+        
+        document.getElementById('exportEvents').addEventListener('click', (e) => {
+            e.preventDefault();
+            exportEvents();
+        });
+
+        // Import buttons
+        document.getElementById('importAssessments').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('fileInputAssessments').click();
+        });
+        
+        document.getElementById('importProducts').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('fileInputProducts').click();
+        });
+        
+        document.getElementById('importEvents').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('fileInputEvents').click();
+        });
+
+        // File input handlers
+        document.getElementById('fileInputAssessments').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                importAssessments(file);
+                e.target.value = ''; // Reset input
+            }
+        });
+        
+        document.getElementById('fileInputProducts').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                importProducts(file);
+                e.target.value = '';
+            }
+        });
+        
+        document.getElementById('fileInputEvents').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                importEvents(file);
+                e.target.value = '';
+            }
+        });
+
+        // Dropdown toggle functionality
+        document.getElementById('exportBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const menu = document.getElementById('exportMenu');
+            const importMenu = document.getElementById('importMenu');
+            menu.classList.toggle('show');
+            importMenu.classList.remove('show');
+        });
+        
+        document.getElementById('importBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const menu = document.getElementById('importMenu');
+            const exportMenu = document.getElementById('exportMenu');
+            menu.classList.toggle('show');
+            exportMenu.classList.remove('show');
+        });
+        
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', () => {
+            document.getElementById('exportMenu').classList.remove('show');
+            document.getElementById('importMenu').classList.remove('show');
+        });
 
         // Modal close buttons
         document.querySelectorAll('.close-modal').forEach(btn => {

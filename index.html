@@ -72,7 +72,30 @@
             <section class="card">
                 <div class="section-header">
                     <h2>Saved Assessments</h2>
+                    <div class="header-actions">
+                        <div class="dropdown">
+                            <button class="btn btn-secondary" id="exportBtn">📥 Export</button>
+                            <div class="dropdown-content" id="exportMenu">
+                                <a href="#" id="exportAssessments">Assessment Records</a>
+                                <a href="#" id="exportProducts">Products History</a>
+                                <a href="#" id="exportEvents">Events History</a>
+                            </div>
+                        </div>
+                        <div class="dropdown">
+                            <button class="btn btn-secondary" id="importBtn">📤 Import</button>
+                            <div class="dropdown-content" id="importMenu">
+                                <a href="#" id="importAssessments">Assessment Records</a>
+                                <a href="#" id="importProducts">Products History</a>
+                                <a href="#" id="importEvents">Events History</a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Hidden file inputs for import -->
+                <input type="file" id="fileInputAssessments" accept=".csv" style="display: none;">
+                <input type="file" id="fileInputProducts" accept=".csv" style="display: none;">
+                <input type="file" id="fileInputEvents" accept=".csv" style="display: none;">
 
                 <!-- Search and Filter -->
                 <div class="search-section">
