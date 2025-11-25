@@ -261,22 +261,25 @@ const commentTemplates = {
         lpNotAssessable: "LP not assesable case, no comment provided.",
         notApplicable: "Not applicable events for assessment in relation to the product. no comment provided.",
     },
-    negativeJustifications: {
-        medicalHistory: "The subject's medical history, including pre-existing conditions and concomitant medications, has been reviewed and considered in the assessment of the reported event.",
-        noTemporalRelationship: "The temporal relationship between product administration and event onset has been evaluated to determine potential causality.",
-        dechallenge: "dechallenge is negative.",
-        rechallenge: "Information regarding dechallenge and rechallenge has been analyzed to assess the likelihood of a causal relationship.",
-        alternativeEtiologies: "Potential alternative etiologies for the reported event have been explored and documented.",
-        insufficientInformation: "The available information is insufficient to draw definitive conclusions regarding the relationship between the product and the reported event.",
-        notListed: "The reported event is not listed in the product's reference safety information, which has been taken into consideration during the assessment.",
-    },
-    positiveJustifications: {
-        noMedicalHistory: "The subject's medical history, including pre-existing conditions and concomitant medications, supports the assessment of a potential causal relationship between the product and the reported event.",
-        temporalRelationship: "The temporal relationship between product administration and event onset is consistent with a potential causal relationship.",
-        dechallenge: "Information regarding dechallenge and rechallenge supports the likelihood of a causal relationship.",
-        rechallenge: "Rechallenge information further supports the causal relationship between the product and the reported event.",
-        noAlternativeEtiologies: "No alternative etiologies for the reported event have been identified, strengthening the potential causal relationship.",
-        listed: "The reported event is listed in the product's reference safety information, supporting a potential causal relationship.",
+    justifications: {
+        positive: {
+            medicalHistory: "The subject's medical history, including pre-existing conditions and concomitant medications, supports the assessment of a potential causal relationship between the product and the reported event.",
+            temporalRelationship: "The temporal relationship between product administration and event onset is consistent with a potential causal relationship.",
+            dechallenge: "positive dechallenge",
+            rechallenge: "Information regarding dechallenge and rechallenge supports the likelihood of a causal relationship.",
+            alternativeEtiologies: "No alternative etiologies for the reported event have been identified, strengthening the potential causal relationship.",
+            insufficientInformation: "Despite limited information, available data supports a potential causal relationship.",
+            listedness: "The reported event is listed in the product's reference safety information, supporting a potential causal relationship."
+        },
+        negative: {
+            medicalHistory: "The subject's medical history, including pre-existing conditions and concomitant medications, has been reviewed and considered in the assessment of the reported event.",
+            temporalRelationship: "The temporal relationship between product administration and event onset has been evaluated to determine potential causality.",
+            dechallenge: "negative dechallenge",
+            rechallenge: "Information regarding dechallenge and rechallenge has been analyzed to assess the likelihood of a causal relationship.",
+            alternativeEtiologies: "Potential alternative etiologies for the reported event have been explored and documented.",
+            insufficientInformation: "The available information is insufficient to draw definitive conclusions regarding the relationship between the product and the reported event.",
+            listedness: "The reported event is not listed in the product's reference safety information, which has been taken into consideration during the assessment."
+        }
     }
 };
 
@@ -306,17 +309,20 @@ function generateComment(caseType, isLicensePartner, productNames, events, relat
         .replace(/{productNames}/g, formattedProducts)
         .replace(/{events}/g, formattedEvents);
 
-    // Add justifications if selected
-    if (justifications && justifications.length > 0) {
+    // Add justifications if selected (only for positive/negative relatedness)
+    if (justifications && justifications.length > 0 && (relatedness === 'positive' || relatedness === 'negative')) {
         comment += " ";
-        justifications.forEach((justKey, index) => {
-            if (commentTemplates.justifications[justKey]) {
-                comment += commentTemplates.justifications[justKey];
-                if (index < justifications.length - 1) {
-                    comment += " ";
+        const justificationTemplates = commentTemplates.justifications[relatedness];
+        if (justificationTemplates) {
+            justifications.forEach((justKey, index) => {
+                if (justificationTemplates[justKey]) {
+                    comment += justificationTemplates[justKey];
+                    if (index < justifications.length - 1) {
+                        comment += " ";
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     // Add additional free text if provided
@@ -473,29 +479,10 @@ function createSubCommentSection() {
                 <textarea id="freeTextComment-${subCommentId}" class="sub-freetext" rows="3" placeholder="Provide free text comment..."></textarea>
             </div>
 
-            <div class="form-group full-width">
+            <div class="form-group full-width justification-container" id="justificationContainer-${subCommentId}" style="display: none;">
                 <label>Justification Templates (Optional)</label>
-                <div class="checkbox-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" class="sub-justification" data-sub-id="${subCommentId}" value="medicalHistory">
-                        Medical History & Concomitant Medications
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" class="sub-justification" data-sub-id="${subCommentId}" value="temporalRelationship">
-                        Temporal Relationship
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" class="sub-justification" data-sub-id="${subCommentId}" value="dechallengeRechallenge">
-                        Dechallenge/Rechallenge
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" class="sub-justification" data-sub-id="${subCommentId}" value="alternativeEtiologies">
-                        Alternative Etiologies
-                    </label>
-                    <label class="checkbox-label">
-                        <input type="checkbox" class="sub-justification" data-sub-id="${subCommentId}" value="insufficientInformation">
-                        Insufficient Information
-                    </label>
+                <div class="checkbox-group" id="justificationCheckboxes-${subCommentId}">
+                    <!-- Justification checkboxes will be dynamically populated -->
                 </div>
             </div>
 
@@ -601,9 +588,76 @@ function setupSubCommentAutocomplete(section) {
 }
 
 // Setup real-time preview for a sub-comment section
+// Toggle justification section based on relatedness
+function updateJustificationOptions(subCommentId, relatedness) {
+    const container = document.getElementById(`justificationContainer-${subCommentId}`);
+    const checkboxesDiv = document.getElementById(`justificationCheckboxes-${subCommentId}`);
+    
+    if (relatedness === 'positive' || relatedness === 'negative') {
+        // Show justification container
+        container.style.display = 'block';
+        
+        // Clear existing checkboxes
+        checkboxesDiv.innerHTML = '';
+        
+        // Add appropriate justification options
+        const justificationOptions = {
+            positive: [
+                { value: 'medicalHistory', label: 'Medical History & Concomitant Medications' },
+                { value: 'temporalRelationship', label: 'Temporal Relationship' },
+                { value: 'dechallenge', label: 'Dechallenge' },
+                { value: 'rechallenge', label: 'Rechallenge' },
+                { value: 'alternativeEtiologies', label: 'No Alternative Etiologies' },
+                { value: 'insufficientInformation', label: 'Insufficient Information' },
+                { value: 'listedness', label: 'Listedness' }
+            ],
+            negative: [
+                { value: 'medicalHistory', label: 'Medical History & Concomitant Medications' },
+                { value: 'temporalRelationship', label: 'Temporal Relationship' },
+                { value: 'dechallenge', label: 'Dechallenge' },
+                { value: 'rechallenge', label: 'Rechallenge' },
+                { value: 'alternativeEtiologies', label: 'Alternative Etiologies' },
+                { value: 'insufficientInformation', label: 'Insufficient Information' },
+                { value: 'listedness', label: 'Listedness' }
+            ]
+        };
+        
+        const options = justificationOptions[relatedness];
+        options.forEach(option => {
+            const label = document.createElement('label');
+            label.className = 'checkbox-label';
+            label.innerHTML = `
+                <input type="checkbox" class="sub-justification" data-sub-id="${subCommentId}" value="${option.value}">
+                ${option.label}
+            `;
+            checkboxesDiv.appendChild(label);
+        });
+        
+        // Re-attach event listeners for new checkboxes
+        const section = document.querySelector(`[data-sub-comment-id="${subCommentId}"]`);
+        const newCheckboxes = checkboxesDiv.querySelectorAll('.sub-justification');
+        newCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => updateSubCommentPreview(subCommentId));
+        });
+    } else {
+        // Hide justification container for other relatedness values
+        container.style.display = 'none';
+        checkboxesDiv.innerHTML = '';
+    }
+}
+
 function setupSubCommentPreview(section) {
     const subCommentId = section.dataset.subCommentId;
     const inputs = section.querySelectorAll('input, select, textarea');
+    
+    // Add special handler for relatedness dropdown
+    const relatednessSelect = section.querySelector(`#relatedness-${subCommentId}`);
+    if (relatednessSelect) {
+        relatednessSelect.addEventListener('change', (e) => {
+            updateJustificationOptions(subCommentId, e.target.value);
+            updateSubCommentPreview(subCommentId);
+        });
+    }
     
     inputs.forEach(input => {
         input.addEventListener('input', () => updateSubCommentPreview(subCommentId));
