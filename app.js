@@ -240,19 +240,21 @@ const commentTemplates = {
     pms: {
         positive: "{companyName} considers that there is a possibility that the {events} related to the {productNames}.",
         negative: "{companyName} has determined that it is unlikely that the {events} related to the {productNames}.",
+        lpNotAssessable: "LP not assesable case, no comment provided.",
+        notApplicable: "Not applicable events for assessment in relation to the product. no comment provided.",
     },
     clinicalTrial: {
         positive: "{companyName} considers that there is a possibility that the {events} related to the study {productNames}.",
         negative: "{companyName} has determined that it is unlikely that the {events} related to the study {productNames}.",
+        lpNotAssessable: "LP not assesable case, no comment provided.",
+        notApplicable: "Not applicable events for assessment in relation to the product. no comment provided.",
+        unblindingPlacebo: "Blinding broken for study termination, placebo case, no comment provided.",
     },
     spontaneous: {
         positive: "{companyName} considers that there is a possibility that the {events} related to the {productNames}.",
         negative: "{companyName} has determined that it is unlikely that the {events} related to the {productNames}.",
-    },
-    other: {
-        lp_not_assessable: "LP not assesable case, no comment provided.",
-        not_applicable: "Not applicable events for assessment in relation to the product. no comment provided.",
-        unblinding_placebo: "Blinding broken for study termination, placebo case, no comment provided.",
+        lpNotAssessable: "LP not assesable case, no comment provided.",
+        notApplicable: "Not applicable events for assessment in relation to the product. no comment provided.",
     },
     justifications: {
         medicalHistory: "The subject's medical history, including pre-existing conditions and concomitant medications, has been reviewed and considered in the assessment of the reported event.",
@@ -496,6 +498,279 @@ async function importFromJSON(file) {
 // ========================
 // UI Functions
 // ========================
+// Sub-Comment Management
+// ========================
+
+let subComments = []; // Array to store multiple sub-comments
+let subCommentCounter = 0; // Counter for unique IDs
+
+// Create a new sub-comment section
+function createSubCommentSection() {
+    const subCommentId = ++subCommentCounter;
+    
+    const section = document.createElement('div');
+    section.className = 'sub-comment-section';
+    section.dataset.subCommentId = subCommentId;
+    
+    section.innerHTML = `
+        <div class="sub-comment-header">
+            <h4>Comment Section #${subCommentId}</h4>
+            <button type="button" class="btn-icon remove-sub-comment" data-id="${subCommentId}" title="Remove this section">
+                ✕
+            </button>
+        </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="relatedness-${subCommentId}">Relatedness *</label>
+                <select id="relatedness-${subCommentId}" class="sub-relatedness" required>
+                    <option value="">-- Select Relatedness --</option>
+                    <option value="positive">Positive</option>
+                    <option value="negative">Negative</option>
+                    <option value="lpNotAssessable">No assessment</option>
+                    <option value="notApplicable">Not applicable</option>
+                    <option value="unblindingPlacebo">Unblinding Placebo</option>
+                </select>
+            </div>
+            <div class="form-group full-width">
+                <label for="productNames-${subCommentId}">Product Name(s) *</label>
+                <input type="text" id="productNames-${subCommentId}" class="sub-products" required placeholder="e.g., Product X, Product Y">
+                <small style="color: #64748b;">Separate multiple products with commas</small>
+            </div>
+
+            <div class="form-group full-width">
+                <label for="events-${subCommentId}">Event(s) *</label>
+                <input type="text" id="events-${subCommentId}" class="sub-events" required placeholder="e.g., pyrexia, cough, rash">
+                <small style="color: #64748b;">Separate multiple events with commas</small>
+            </div>
+
+            <div class="form-group full-width">
+                <label for="freeTextComment-${subCommentId}">Free text comment</label>
+                <textarea id="freeTextComment-${subCommentId}" class="sub-freetext" rows="3" placeholder="Provide free text comment..."></textarea>
+            </div>
+
+            <div class="form-group full-width">
+                <label>Justification Templates (Optional)</label>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="sub-justification" data-sub-id="${subCommentId}" value="medicalHistory">
+                        Medical History & Concomitant Medications
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="sub-justification" data-sub-id="${subCommentId}" value="temporalRelationship">
+                        Temporal Relationship
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="sub-justification" data-sub-id="${subCommentId}" value="dechallengeRechallenge">
+                        Dechallenge/Rechallenge
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="sub-justification" data-sub-id="${subCommentId}" value="alternativeEtiologies">
+                        Alternative Etiologies
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="sub-justification" data-sub-id="${subCommentId}" value="insufficientInformation">
+                        Insufficient Information
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group full-width">
+                <label for="additionalNotes-${subCommentId}">Additional Free Text</label>
+                <textarea id="additionalNotes-${subCommentId}" class="sub-notes" rows="3" placeholder="Add any specific details, observations, or additional justification..."></textarea>
+            </div>
+        </div>
+        <div class="sub-comment-preview hidden">
+            <h5>Preview:</h5>
+            <div class="comment-display sub-preview-text"></div>
+        </div>
+    `;
+    
+    return section;
+}
+
+// Add a new sub-comment section to the container
+function addSubCommentSection() {
+    const container = document.getElementById('subCommentsContainer');
+    const section = createSubCommentSection();
+    container.appendChild(section);
+    
+    // Setup autocomplete for the new inputs
+    setupSubCommentAutocomplete(section);
+    
+    // Add event listeners for real-time preview
+    setupSubCommentPreview(section);
+    
+    // Add remove button listener
+    const removeBtn = section.querySelector('.remove-sub-comment');
+    removeBtn.addEventListener('click', () => removeSubCommentSection(section.dataset.subCommentId));
+    
+    return section;
+}
+
+// Remove a sub-comment section
+function removeSubCommentSection(subCommentId) {
+    const section = document.querySelector(`[data-sub-comment-id="${subCommentId}"]`);
+    if (section) {
+        section.remove();
+        
+        // Renumber remaining sections
+        const allSections = document.querySelectorAll('.sub-comment-section');
+        allSections.forEach((sec, index) => {
+            const header = sec.querySelector('.sub-comment-header h4');
+            header.textContent = `Comment Section #${index + 1}`;
+        });
+    }
+}
+
+// Setup autocomplete for a sub-comment section
+function setupSubCommentAutocomplete(section) {
+    const subCommentId = section.dataset.subCommentId;
+    const productsInput = section.querySelector(`#productNames-${subCommentId}`);
+    const eventsInput = section.querySelector(`#events-${subCommentId}`);
+    
+    // Products autocomplete
+    setupAutocomplete(productsInput, searchProducts, (selectedProduct) => {
+        const input = productsInput;
+        const value = input.value;
+        const cursorPos = input.selectionStart;
+        const textBeforeCursor = value.substring(0, cursorPos);
+        const textAfterCursor = value.substring(cursorPos);
+        const lastComma = textBeforeCursor.lastIndexOf(',');
+        
+        if (lastComma >= 0) {
+            const beforeComma = textBeforeCursor.substring(0, lastComma + 1);
+            input.value = beforeComma + ' ' + selectedProduct + textAfterCursor;
+            input.selectionStart = input.selectionEnd = (beforeComma + ' ' + selectedProduct).length;
+        } else {
+            input.value = selectedProduct + textAfterCursor;
+            input.selectionStart = input.selectionEnd = selectedProduct.length;
+        }
+    });
+    
+    // Events autocomplete
+    setupAutocomplete(eventsInput, searchEvents, (selectedEvent) => {
+        const input = eventsInput;
+        const value = input.value;
+        const cursorPos = input.selectionStart;
+        const textBeforeCursor = value.substring(0, cursorPos);
+        const textAfterCursor = value.substring(cursorPos);
+        const lastComma = textBeforeCursor.lastIndexOf(',');
+        
+        if (lastComma >= 0) {
+            const beforeComma = textBeforeCursor.substring(0, lastComma + 1);
+            input.value = beforeComma + ' ' + selectedEvent + textAfterCursor;
+            input.selectionStart = input.selectionEnd = (beforeComma + ' ' + selectedEvent).length;
+        } else {
+            input.value = selectedEvent + textAfterCursor;
+            input.selectionStart = input.selectionEnd = selectedEvent.length;
+        }
+    });
+}
+
+// Setup real-time preview for a sub-comment section
+function setupSubCommentPreview(section) {
+    const subCommentId = section.dataset.subCommentId;
+    const inputs = section.querySelectorAll('input, select, textarea');
+    
+    inputs.forEach(input => {
+        input.addEventListener('input', () => updateSubCommentPreview(subCommentId));
+        input.addEventListener('change', () => updateSubCommentPreview(subCommentId));
+    });
+}
+
+// Update preview for a specific sub-comment
+function updateSubCommentPreview(subCommentId) {
+    const section = document.querySelector(`[data-sub-comment-id="${subCommentId}"]`);
+    if (!section) return;
+    
+    const caseType = document.getElementById('caseType').value;
+    const isLicensePartner = document.getElementById('isLicensePartner').checked;
+    const productNames = section.querySelector(`#productNames-${subCommentId}`).value.trim();
+    const events = section.querySelector(`#events-${subCommentId}`).value.trim();
+    const relatedness = section.querySelector(`#relatedness-${subCommentId}`).value;
+    const freeText = section.querySelector(`#freeTextComment-${subCommentId}`).value.trim();
+    const additionalNotes = section.querySelector(`#additionalNotes-${subCommentId}`).value.trim();
+    
+    const justifications = Array.from(section.querySelectorAll(`.sub-justification[data-sub-id="${subCommentId}"]:checked`))
+        .map(checkbox => checkbox.value);
+    
+    const previewSection = section.querySelector('.sub-comment-preview');
+    const previewText = section.querySelector('.sub-preview-text');
+    
+    // Only show preview if required fields are filled
+    if (caseType && productNames && events && relatedness) {
+        const comment = generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes, freeText);
+        previewText.textContent = comment;
+        previewSection.classList.remove('hidden');
+    } else {
+        previewSection.classList.add('hidden');
+    }
+}
+
+// Collect all sub-comment data
+function collectSubCommentData() {
+    const sections = document.querySelectorAll('.sub-comment-section');
+    const subCommentData = [];
+    
+    sections.forEach(section => {
+        const subCommentId = section.dataset.subCommentId;
+        
+        const data = {
+            productNames: section.querySelector(`#productNames-${subCommentId}`).value.trim(),
+            events: section.querySelector(`#events-${subCommentId}`).value.trim(),
+            relatedness: section.querySelector(`#relatedness-${subCommentId}`).value,
+            freeText: section.querySelector(`#freeTextComment-${subCommentId}`).value.trim(),
+            additionalNotes: section.querySelector(`#additionalNotes-${subCommentId}`).value.trim(),
+            justifications: Array.from(section.querySelectorAll(`.sub-justification[data-sub-id="${subCommentId}"]:checked`))
+                .map(checkbox => checkbox.value)
+        };
+        
+        // Only include if required fields are filled
+        if (data.productNames && data.events && data.relatedness) {
+            subCommentData.push(data);
+        }
+    });
+    
+    return subCommentData;
+}
+
+// Generate combined comment from all sub-comments
+function generateCombinedComment() {
+    const caseType = document.getElementById('caseType').value;
+    const isLicensePartner = document.getElementById('isLicensePartner').checked;
+    const subCommentData = collectSubCommentData();
+    
+    if (!caseType || subCommentData.length === 0) {
+        return '';
+    }
+    
+    const comments = subCommentData.map(data => {
+        return generateComment(
+            caseType,
+            isLicensePartner,
+            data.productNames,
+            data.events,
+            data.relatedness,
+            data.justifications,
+            data.additionalNotes,
+            data.freeText
+        );
+    });
+    
+    // Join comments with paragraph breaks
+    return comments.join('\n\n');
+}
+
+// Clear all sub-comment sections
+function clearAllSubComments() {
+    const container = document.getElementById('subCommentsContainer');
+    container.innerHTML = '';
+    subCommentCounter = 0;
+}
+
+// ========================
+// Global State Variables
+// ========================
 
 let currentGeneratedComment = null;
 let currentAssessmentData = null;
@@ -718,18 +993,56 @@ function setupAutocomplete(inputElement, searchFunction, onSelect) {
 
 // Populate form with assessment data
 function populateFormWithAssessment(assessment) {
+    // Populate case information
     document.getElementById('caseId').value = assessment.caseId;
     document.getElementById('caseType').value = assessment.caseType;
     document.getElementById('isLicensePartner').checked = assessment.isLicensePartner;
-    document.getElementById('productNames').value = assessment.productNames;
-    document.getElementById('events').value = assessment.events;
-    document.getElementById('relatedness').value = assessment.relatedness;
-    document.getElementById('additionalNotes').value = assessment.additionalNotes || '';
     
-    // Set justification checkboxes
-    document.querySelectorAll('input[name="justification"]').forEach(checkbox => {
-        checkbox.checked = assessment.justifications?.includes(checkbox.value) || false;
-    });
+    // Clear existing sub-comments
+    clearAllSubComments();
+    
+    // Check if this assessment has sub-comments data
+    if (assessment.subComments && assessment.subComments.length > 0) {
+        // Recreate sub-comments from saved data
+        assessment.subComments.forEach(subData => {
+            const section = addSubCommentSection();
+            const subCommentId = section.dataset.subCommentId;
+            
+            section.querySelector(`#productNames-${subCommentId}`).value = subData.productNames;
+            section.querySelector(`#events-${subCommentId}`).value = subData.events;
+            section.querySelector(`#relatedness-${subCommentId}`).value = subData.relatedness;
+            section.querySelector(`#freeTextComment-${subCommentId}`).value = subData.freeText || '';
+            section.querySelector(`#additionalNotes-${subCommentId}`).value = subData.additionalNotes || '';
+            
+            // Set justifications
+            subData.justifications?.forEach(justValue => {
+                const checkbox = section.querySelector(`.sub-justification[data-sub-id="${subCommentId}"][value="${justValue}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+            
+            // Update preview
+            updateSubCommentPreview(subCommentId);
+        });
+    } else {
+        // Legacy assessment without sub-comments - create one sub-comment with all data
+        const section = addSubCommentSection();
+        const subCommentId = section.dataset.subCommentId;
+        
+        section.querySelector(`#productNames-${subCommentId}`).value = assessment.productNames;
+        section.querySelector(`#events-${subCommentId}`).value = assessment.events;
+        section.querySelector(`#relatedness-${subCommentId}`).value = assessment.relatedness;
+        section.querySelector(`#freeTextComment-${subCommentId}`).value = assessment.freeTextComment || '';
+        section.querySelector(`#additionalNotes-${subCommentId}`).value = assessment.additionalNotes || '';
+        
+        // Set justifications
+        assessment.justifications?.forEach(justValue => {
+            const checkbox = section.querySelector(`.sub-justification[data-sub-id="${subCommentId}"][value="${justValue}"]`);
+            if (checkbox) checkbox.checked = true;
+        });
+        
+        // Update preview
+        updateSubCommentPreview(subCommentId);
+    }
 
     showNotification('Form populated with previous assessment data', 'success');
 }
@@ -743,77 +1056,57 @@ document.addEventListener('DOMContentLoaded', async () => {
         await initDB();
         await loadAndDisplayRecords();
 
-        // Setup autocomplete for inputs
+        // Setup autocomplete for Case ID only
         const caseIdInput = document.getElementById('caseId');
-        const productsInput = document.getElementById('productNames');
-        const eventsInput = document.getElementById('events');
 
         // Case ID autocomplete - retrieves and populates full assessment
         setupAutocomplete(caseIdInput, searchCaseIds, (selectedAssessment) => {
             populateFormWithAssessment(selectedAssessment);
         });
 
-        // Products autocomplete - handles comma-separated lists
-        setupAutocomplete(productsInput, searchProducts, (selectedProduct) => {
-            const input = productsInput;
-            const value = input.value;
-            const cursorPos = input.selectionStart;
-            const textBeforeCursor = value.substring(0, cursorPos);
-            const textAfterCursor = value.substring(cursorPos);
-            const lastComma = textBeforeCursor.lastIndexOf(',');
-            
-            if (lastComma >= 0) {
-                // Replace the current word after the last comma
-                const beforeComma = textBeforeCursor.substring(0, lastComma + 1);
-                input.value = beforeComma + ' ' + selectedProduct + textAfterCursor;
-                input.selectionStart = input.selectionEnd = (beforeComma + ' ' + selectedProduct).length;
-            } else {
-                // Replace entire field
-                input.value = selectedProduct + textAfterCursor;
-                input.selectionStart = input.selectionEnd = selectedProduct.length;
-            }
+        // Add Sub-Comment button
+        document.getElementById('addSubComment').addEventListener('click', () => {
+            addSubCommentSection();
         });
 
-        // Events autocomplete - handles comma-separated lists
-        setupAutocomplete(eventsInput, searchEvents, (selectedEvent) => {
-            const input = eventsInput;
-            const value = input.value;
-            const cursorPos = input.selectionStart;
-            const textBeforeCursor = value.substring(0, cursorPos);
-            const textAfterCursor = value.substring(cursorPos);
-            const lastComma = textBeforeCursor.lastIndexOf(',');
-            
-            if (lastComma >= 0) {
-                // Replace the current word after the last comma
-                const beforeComma = textBeforeCursor.substring(0, lastComma + 1);
-                input.value = beforeComma + ' ' + selectedEvent + textAfterCursor;
-                input.selectionStart = input.selectionEnd = (beforeComma + ' ' + selectedEvent).length;
-            } else {
-                // Replace entire field
-                input.value = selectedEvent + textAfterCursor;
-                input.selectionStart = input.selectionEnd = selectedEvent.length;
-            }
-        });
+        // Initialize with one sub-comment section
+        addSubCommentSection();
 
-        // Comment form submission
+        // Comment form submission - Generate combined comment
         document.getElementById('commentForm').addEventListener('submit', (e) => {
             e.preventDefault();
             
             const caseId = document.getElementById('caseId').value.trim();
             const caseType = document.getElementById('caseType').value;
             const isLicensePartner = document.getElementById('isLicensePartner').checked;
-            const productNames = document.getElementById('productNames').value.trim();
-            const events = document.getElementById('events').value.trim();
-            const relatedness = document.getElementById('relatedness').value;
-            const freeTextComment = document.getElementById('freeTextComment').value.trim();
-            const additionalNotes = document.getElementById('additionalNotes').value.trim();
             
-            // Get selected justifications
-            const justifications = Array.from(document.querySelectorAll('input[name="justification"]:checked'))
-                .map(checkbox => checkbox.value);
+            if (!caseType) {
+                showNotification('Please select a Case Type', 'error');
+                return;
+            }
 
-            // Generate comment
-            const comment = generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes, freeTextComment);
+            const subCommentData = collectSubCommentData();
+            
+            if (subCommentData.length === 0) {
+                showNotification('Please fill in at least one comment section', 'error');
+                return;
+            }
+
+            // Generate combined comment
+            const comment = generateCombinedComment();
+            
+            // Collect all products and events from all sub-comments
+            const allProducts = subCommentData.map(d => d.productNames).join(', ');
+            const allEvents = subCommentData.map(d => d.events).join(', ');
+            
+            // Collect all justifications (unique)
+            const allJustifications = [...new Set(subCommentData.flatMap(d => d.justifications))];
+            
+            // Combine all additional notes
+            const allNotes = subCommentData
+                .map(d => d.additionalNotes)
+                .filter(n => n)
+                .join(' | ');
             
             // Store for saving later
             currentGeneratedComment = comment;
@@ -821,14 +1114,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 caseId,
                 caseType,
                 isLicensePartner,
-                productNames,
-                events,
-                relatedness,
-                justifications,
-                additionalNotes,
-                freeTextComment,
+                productNames: allProducts,
+                events: allEvents,
+                relatedness: 'multiple', // Special marker for multi-assessment
+                justifications: allJustifications,
+                additionalNotes: allNotes,
+                freeTextComment: '',
                 generatedComment: comment,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                subComments: subCommentData // Store sub-comment details
             };
 
             // Display generated comment
@@ -853,6 +1147,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 // Clear form and hide generated comment
                 document.getElementById('commentForm').reset();
+                clearAllSubComments();
+                addSubCommentSection(); // Add one empty section
                 document.getElementById('generatedCommentSection').classList.add('hidden');
                 currentGeneratedComment = null;
                 currentAssessmentData = null;
@@ -872,6 +1168,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Clear form button
         document.getElementById('clearForm').addEventListener('click', () => {
             document.getElementById('commentForm').reset();
+            clearAllSubComments();
+            addSubCommentSection(); // Add one empty section
             document.getElementById('generatedCommentSection').classList.add('hidden');
             currentGeneratedComment = null;
             currentAssessmentData = null;

@@ -18,91 +18,42 @@
             <section class="card">
                 <h2>Generate New Comment</h2>
                 <form id="commentForm">
-                    <div class="form-grid-3">
-                        <div class="form-group">
-                            <label for="caseId">Case ID</label>
-                            <input type="text" id="caseId" placeholder="e.g., CASE-2024-001">
-                        </div>
+                    <!-- Case Information Section (Fixed) -->
+                    <div class="case-info-section">
+                        <h3>Case Information</h3>
+                        <div class="form-grid-3">
+                            <div class="form-group">
+                                <label for="caseId">Case ID</label>
+                                <input type="text" id="caseId" placeholder="e.g., CASE-2024-001">
+                            </div>
 
-                        <div class="form-group">
-                            <label for="caseType">Case Type *</label>
-                            <select id="caseType" required>
-                                <option value="">-- Select Case Type --</option>
-                                <option value="pms">Post-Marketing Study</option>
-                                <option value="clinicalTrial">Clinical Trial</option>
-                                <option value="spontaneous">Spontaneous</option>
-                            </select>
-                        </div>
-                        <div class="form-group checkbox-inline">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="isLicensePartner">
-                                License Partner Case
-                            </label>
-                        </div>
-                    </div>
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="relatedness">Relatedness</label>
-                            <select id="relatedness" required>
-                                <option value="">-- Select Relatedness --</option>
-                                <option value="positive">Positive</option>
-                                <option value="negative">Negative</option>
-                                <option value="noAssessment">No assessment</option>
-                                <option value="notApplicable">Not applicable</option>
-                            </select>
-                        </div>
-                        <div class="form-group full-width">
-                            <label for="productNames">Product Name(s) *</label>
-                            <input type="text" id="productNames" required placeholder="e.g., Product X, Product Y">
-                            <small style="color: #64748b;">Separate multiple products with commas</small>
-                        </div>
-
-                        <div class="form-group full-width">
-                            <label for="events">Event(s) *</label>
-                            <input type="text" id="events" required placeholder="e.g., pyrexia, cough, rash">
-                            <small style="color: #64748b;">Separate multiple events with commas</small>
-                        </div>
-
-                        <div class="form-group full-width">
-                            <label for="freeTextComment">Free text comment</label>
-                            <textarea id="freeTextComment" rows="3" placeholder="Provide free text comment..."></textarea>
-                        </div>
-
-                        <div class="form-group full-width">
-                            <label>Justification Templates (Optional)</label>
-                            <div class="checkbox-group">
+                            <div class="form-group">
+                                <label for="caseType">Case Type *</label>
+                                <select id="caseType" required>
+                                    <option value="">-- Select Case Type --</option>
+                                    <option value="pms">Post-Marketing Study</option>
+                                    <option value="clinicalTrial">Clinical Trial</option>
+                                    <option value="spontaneous">Spontaneous</option>
+                                </select>
+                            </div>
+                            <div class="form-group checkbox-inline">
                                 <label class="checkbox-label">
-                                    <input type="checkbox" name="justification" value="medicalHistory">
-                                    Medical History & Concomitant Medications
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="justification" value="temporalRelationship">
-                                    Temporal Relationship
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="justification" value="dechallengeRechallenge">
-                                    Dechallenge/Rechallenge
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="justification" value="alternativeEtiologies">
-                                    Alternative Etiologies
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="justification" value="insufficientInformation">
-                                    Insufficient Information
+                                    <input type="checkbox" id="isLicensePartner">
+                                    License Partner Case
                                 </label>
                             </div>
                         </div>
+                    </div>
 
-                        <div class="form-group full-width">
-                            <label for="additionalNotes">Additional Free Text</label>
-                            <textarea id="additionalNotes" rows="3" placeholder="Add any specific details, observations, or additional justification..."></textarea>
-                        </div>
+                    <!-- Sub-Comments Container -->
+                    <div id="subCommentsContainer">
+                        <!-- Sub-comment sections will be added here dynamically -->
                     </div>
 
                     <div class="button-group">
-                        <button type="submit" class="btn btn-primary">Generate Comment</button>
-                        <button type="button" id="clearForm" class="btn btn-secondary">Clear Form</button>
+                        <button type="button" id="addSubComment" class="btn btn-success">+ Add New Comment</button>
+                        <button type="submit" class="btn btn-primary">Generate Final Comment</button>
+                        <button type="button" id="clearForm" class="btn btn-secondary">Clear All</button>
                     </div>
                 </form>
 

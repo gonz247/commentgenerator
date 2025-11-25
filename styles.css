@@ -704,6 +704,103 @@ tbody tr:hover {
 }
 
 /* ========================
+   Case Information Section
+   ======================== */
+
+.case-info-section {
+    background-color: var(--bg-secondary);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    margin-bottom: 30px;
+    border: 2px solid var(--border-color);
+}
+
+.case-info-section h3 {
+    font-size: 1.1rem;
+    margin-bottom: 15px;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* ========================
+   Sub-Comment Sections
+   ======================== */
+
+#subCommentsContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    margin-bottom: 25px;
+}
+
+.sub-comment-section {
+    background-color: var(--bg-primary);
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    transition: var(--transition);
+    box-shadow: var(--shadow-sm);
+}
+
+.sub-comment-section:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-md);
+}
+
+.sub-comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.sub-comment-header h4 {
+    font-size: 1.1rem;
+    color: var(--primary-color);
+    font-weight: 600;
+    margin: 0;
+}
+
+.remove-sub-comment {
+    background-color: var(--danger-color);
+    color: white;
+    font-size: 1.2rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    transition: var(--transition);
+}
+
+.remove-sub-comment:hover {
+    background-color: var(--danger-hover);
+    transform: scale(1.1);
+}
+
+.sub-comment-preview {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 2px dashed var(--border-color);
+}
+
+.sub-comment-preview h5 {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.sub-comment-preview .comment-display {
+    background-color: var(--bg-tertiary);
+    padding: 15px;
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--success-color);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+/* ========================
    Autocomplete
    ======================== */
 
