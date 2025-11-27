@@ -521,21 +521,21 @@ async function importEvents(file) {
 
 const commentTemplates = {
     pms: {
-        positive: "{companyName} considers that there is a possibility that the {events} related to the {productNames}.",
-        negative: "{companyName} has determined that it is unlikely that the {events} related to the {productNames}.",
+        positive: "{companyName} considers that there is a possibility that the {eventNoun} {verbForm} related to the {productNoun}.",
+        negative: "{companyName} has determined that it is unlikely that the {eventNoun} {verbForm} related to the {productNoun}.",
         lpNotAssessable: "LP not assesable case, no comment provided.",
         notApplicable: "Not applicable events for assessment in relation to the product. no comment provided.",
     },
     clinicalTrial: {
-        positive: "{companyName} considers that there is a possibility that the {events} related to the study {productNames}.",
-        negative: "{companyName} has determined that it is unlikely that the {events} related to the study {productNames}.",
+        positive: "{companyName} considers that there is a possibility that the {eventNoun} {verbForm} related to the study {productNoun}.",
+        negative: "{companyName} has determined that it is unlikely that the {eventNoun} {verbForm} related to the study {productNoun}.",
         lpNotAssessable: "LP not assesable case, no comment provided.",
         notApplicable: "Not applicable events for assessment in relation to the product. no comment provided.",
         unblindingPlacebo: "Blinding broken for study termination, placebo case, no comment provided.",
     },
     spontaneous: {
-        positive: "{companyName} considers that there is a possibility that the {events} related to the {productNames}.",
-        negative: "{companyName} has determined that it is unlikely that the {events} related to the {productNames}.",
+        positive: "{companyName} considers that there is a possibility that the {eventNoun} {verbForm} related to the {productNoun}.",
+        negative: "{companyName} has determined that it is unlikely that the {eventNoun} {verbForm} related to the {productNoun}.",
         lpNotAssessable: "LP not assesable case, no comment provided.",
         notApplicable: "Not applicable events for assessment in relation to the product. no comment provided.",
     },
@@ -550,15 +550,15 @@ const commentTemplates = {
                 positiveRechallenge: "positive rechallenge",
                 specificTest: "specific test proving causality"
             },
-            eventIsListed: "The reported event is listed in the product's {documentType}.",
+            eventIsListed: "The reported {eventNoun} {verbForm} recognized as a listed {eventNoun} in the product's {documentType}.",
             listedDocuments: {
                 RSI: "RSI",
                 DCSI: "DCSI"
             },
-            noAltExplanations: "no alternative explanations  were identified.",
+            noAltExplanations: "no alternative explanations were identified for the {eventNoun}.",
         },
         negative: {
-            medicalHistory: "The subject's medical history, has been reviewed and considered in the assessment of the reported event. {extraInfoJustifications}.",
+            medicalHistory: "The subject's medical history has been reviewed and considered in the assessment of the reported {eventNoun}. {extraInfoJustifications}",
             alternativeEtiologies: "Potential alternative etiologies {extraInfoJustifications}.",
             coMedications: "The role of concomitant medications {extraInfoJustifications} is considered as a possible cause.",
             eventResolved: "The event resolved without any changes to the product administration.",
@@ -590,12 +590,18 @@ function generateComment(caseType, isLicensePartner, productNames, events, relat
 
     // Determine company name based on LP status
     const companyName = isLicensePartner ? COMPANY_NAME : 'The company';
+    
+    // Get grammatically correct forms
+    const eventNoun = getSingularOrPlural(events, 'event', 'events');
+    const productNoun = getSingularOrPlural(productNames, 'drug', 'drugs');
+    const verbForm = getVerbForm(events);
 
     // Replace placeholders in main template
     let comment = template
         .replace(/{companyName}/g, companyName)
-        .replace(/{productNames}/g, formattedProducts)
-        .replace(/{events}/g, formattedEvents);
+        .replace(/{eventNoun}/g, `${eventNoun} ${formattedEvents}`)
+        .replace(/{productNoun}/g, `${productNoun} ${formattedProducts}`)
+        .replace(/{verbForm}/g, verbForm);
 
     // Add justifications if selected (only for positive/negative relatedness)
     if (justifications && justifications.length > 0 && (relatedness === 'positive' || relatedness === 'negative')) {
@@ -655,6 +661,10 @@ function generateComment(caseType, isLicensePartner, productNames, events, relat
                         }
                     }
                     
+                    // Replace eventNoun and verbForm in justifications
+                    justificationText = justificationText.replace(/{eventNoun}/g, eventNoun);
+                    justificationText = justificationText.replace(/{verbForm}/g, verbForm);
+                    
                     comment += justificationText;
                     if (index < justifications.length - 1) {
                         comment += " ";
@@ -684,6 +694,24 @@ function formatListForSentence(itemsString) {
     const allButLast = items.slice(0, -1).join(', ');
     const last = items[items.length - 1];
     return `${allButLast}, and ${last}`;
+}
+
+// Helper function to count items in a comma-separated string
+function countItems(itemsString) {
+    if (!itemsString) return 0;
+    return itemsString.split(',').map(item => item.trim()).filter(item => item).length;
+}
+
+// Helper function to get singular or plural form of event/product
+function getSingularOrPlural(itemsString, singularForm, pluralForm) {
+    const count = countItems(itemsString);
+    return count === 1 ? singularForm : pluralForm;
+}
+
+// Helper function to get correct verb form (was/were)
+function getVerbForm(itemsString) {
+    const count = countItems(itemsString);
+    return count === 1 ? 'was' : 'were';
 }
 
 // ========================
