@@ -541,19 +541,22 @@ const commentTemplates = {
     },
     justifications: {
         positive: {
-            reportIsConsistent: "The case has a probable causal relation based on",
+            reportIsConsistent: "The case has a probable causal relation based on {evidenceList}.",
             consistentEvidences: {
-            timeToOnset:"plausible time to onset",
-            biologicalPlausibility: "biological plausibility",
-            noAltEtiology: "absence of alternative etiologies",
-            populationBased: "known population-based causal relation",
-            positiveRechallenge: "positive rechallenge",
-            specificTest: "specific test proving causality",
-
-        },
-            eventIsListed: "The reported event is listed in the product's {RSI}",
+                timeToOnset: "plausible time to onset",
+                biologicalPlausibility: "biological plausibility",
+                noAltEtiology: "absence of alternative etiologies",
+                populationBased: "known population-based causal relation",
+                positiveRechallenge: "positive rechallenge",
+                specificTest: "specific test proving causality"
+            },
+            eventIsListed: "The reported event is listed in the product's {documentType}.",
+            listedDocuments: {
+                RSI: "RSI",
+                DCSI: "DCSI"
+            },
             noAltExplanations: "no alternative explanations  were identified.",
-    },
+        },
         negative: {
             medicalHistory: "The subject's medical history, has been reviewed and considered in the assessment of the reported event. {extraInfoJustifications}.",
             alternativeEtiologies: "Potential alternative etiologies {extraInfoJustifications}.",
@@ -611,6 +614,38 @@ function generateComment(caseType, isLicensePartner, productNames, events, relat
                         justificationText = justificationText.replace(/{followUpText}/g, followUpText);
                     }
                     
+                    // Handle reportIsConsistent with nested evidences
+                    if (justKey === 'reportIsConsistent' && additionalNotes && additionalNotes._evidences) {
+                        const evidences = additionalNotes._evidences;
+                        const evidenceTemplates = commentTemplates.justifications.positive.consistentEvidences;
+                        const evidenceList = evidences
+                            .map(ev => evidenceTemplates[ev])
+                            .filter(ev => ev);
+                        
+                        if (evidenceList.length > 0) {
+                            const formattedEvidences = formatListForSentence(evidenceList.join(', '));
+                            justificationText = justificationText.replace(/{evidenceList}/g, formattedEvidences);
+                        } else {
+                            justificationText = justificationText.replace(/{evidenceList}/g, 'available evidence');
+                        }
+                    }
+                    
+                    // Handle eventIsListed with nested document selection
+                    if (justKey === 'eventIsListed' && additionalNotes && additionalNotes._documents) {
+                        const documents = additionalNotes._documents;
+                        const documentTemplates = commentTemplates.justifications.positive.listedDocuments;
+                        const documentList = documents
+                            .map(doc => documentTemplates[doc])
+                            .filter(doc => doc);
+                        
+                        if (documentList.length > 0) {
+                            const formattedDocuments = documentList.join(' or ');
+                            justificationText = justificationText.replace(/{documentType}/g, formattedDocuments);
+                        } else {
+                            justificationText = justificationText.replace(/{documentType}/g, 'reference safety information');
+                        }
+                    }
+                    
                     comment += justificationText;
                     if (index < justifications.length - 1) {
                         comment += " ";
@@ -621,8 +656,9 @@ function generateComment(caseType, isLicensePartner, productNames, events, relat
     }
 
     // Add additional free text if provided
-    if (additionalNotes && additionalNotes.trim()) {
-        comment += ` ${additionalNotes.trim()}`;
+    const notesText = typeof additionalNotes === 'object' ? additionalNotes.text : additionalNotes;
+    if (notesText && notesText.trim()) {
+        comment += ` ${notesText.trim()}`;
     }
 
     return comment;
@@ -898,13 +934,9 @@ function updateJustificationOptions(subCommentId, relatedness) {
         // Add appropriate justification options
         const justificationOptions = {
             positive: [
-                { value: 'medicalHistory', label: 'Medical History & Concomitant Medications' },
-                { value: 'temporalRelationship', label: 'Temporal Relationship' },
-                { value: 'dechallenge', label: 'Dechallenge' },
-                { value: 'rechallenge', label: 'Rechallenge' },
-                { value: 'alternativeEtiologies', label: 'No Alternative Etiologies' },
-                { value: 'insufficientInformation', label: 'Insufficient Information' },
-                { value: 'listedness', label: 'Listedness' }
+                { value: 'reportIsConsistent', label: 'Report is Consistent (Probable Causal Relation)' },
+                { value: 'eventIsListed', label: 'Event is Listed' },
+                { value: 'noAltExplanations', label: 'No Alternative Explanations' }
             ],
             negative: [
                 { value: 'medicalHistory', label: 'Medical History & Concomitant Medications' },
@@ -926,12 +958,124 @@ function updateJustificationOptions(subCommentId, relatedness) {
                 ${option.label}
             `;
             checkboxesDiv.appendChild(label);
+            
+            // Add nested evidences container for reportIsConsistent
+            if (option.value === 'reportIsConsistent' && relatedness === 'positive') {
+                const evidenceContainer = document.createElement('div');
+                evidenceContainer.className = 'nested-evidence-container';
+                evidenceContainer.id = `evidenceContainer-${subCommentId}`;
+                evidenceContainer.style.display = 'none';
+                evidenceContainer.style.marginLeft = '30px';
+                evidenceContainer.style.marginTop = '10px';
+                evidenceContainer.style.padding = '10px';
+                evidenceContainer.style.border = '1px solid #e2e8f0';
+                evidenceContainer.style.borderRadius = '4px';
+                evidenceContainer.style.backgroundColor = '#f8fafc';
+                
+                const evidenceLabel = document.createElement('div');
+                evidenceLabel.style.fontWeight = '600';
+                evidenceLabel.style.marginBottom = '8px';
+                evidenceLabel.style.color = '#475569';
+                evidenceLabel.textContent = 'Select Supporting Evidences:';
+                evidenceContainer.appendChild(evidenceLabel);
+                
+                const evidenceOptions = [
+                    { value: 'timeToOnset', label: 'Plausible time to onset' },
+                    { value: 'biologicalPlausibility', label: 'Biological plausibility' },
+                    { value: 'noAltEtiology', label: 'Absence of alternative etiologies' },
+                    { value: 'populationBased', label: 'Known population-based causal relation' },
+                    { value: 'positiveRechallenge', label: 'Positive rechallenge' },
+                    { value: 'specificTest', label: 'Specific test proving causality' }
+                ];
+                
+                evidenceOptions.forEach(ev => {
+                    const evLabel = document.createElement('label');
+                    evLabel.className = 'checkbox-label';
+                    evLabel.style.display = 'block';
+                    evLabel.style.marginBottom = '5px';
+                    evLabel.innerHTML = `
+                        <input type="checkbox" class="sub-evidence" data-sub-id="${subCommentId}" value="${ev.value}">
+                        ${ev.label}
+                    `;
+                    evidenceContainer.appendChild(evLabel);
+                });
+                
+                checkboxesDiv.appendChild(evidenceContainer);
+            }
+            
+            // Add nested documents container for eventIsListed
+            if (option.value === 'eventIsListed' && relatedness === 'positive') {
+                const documentContainer = document.createElement('div');
+                documentContainer.className = 'nested-document-container';
+                documentContainer.id = `documentContainer-${subCommentId}`;
+                documentContainer.style.display = 'none';
+                documentContainer.style.marginLeft = '30px';
+                documentContainer.style.marginTop = '10px';
+                documentContainer.style.padding = '10px';
+                documentContainer.style.border = '1px solid #e2e8f0';
+                documentContainer.style.borderRadius = '4px';
+                documentContainer.style.backgroundColor = '#f8fafc';
+                
+                const documentLabel = document.createElement('div');
+                documentLabel.style.fontWeight = '600';
+                documentLabel.style.marginBottom = '8px';
+                documentLabel.style.color = '#475569';
+                documentLabel.textContent = 'Select Document Type:';
+                documentContainer.appendChild(documentLabel);
+                
+                const documentOptions = [
+                    { value: 'RSI', label: 'RSI (Reference Safety Information)' },
+                    { value: 'DCSI', label: 'DCSI (Data Sheet/Company Safety Information)' }
+                ];
+                
+                documentOptions.forEach(doc => {
+                    const docLabel = document.createElement('label');
+                    docLabel.className = 'checkbox-label';
+                    docLabel.style.display = 'block';
+                    docLabel.style.marginBottom = '5px';
+                    docLabel.innerHTML = `
+                        <input type="checkbox" class="sub-document" data-sub-id="${subCommentId}" value="${doc.value}">
+                        ${doc.label}
+                    `;
+                    documentContainer.appendChild(docLabel);
+                });
+                
+                checkboxesDiv.appendChild(documentContainer);
+            }
         });
         
         // Re-attach event listeners for new checkboxes
         const section = document.querySelector(`[data-sub-comment-id="${subCommentId}"]`);
         const newCheckboxes = checkboxesDiv.querySelectorAll('.sub-justification');
         newCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                // Toggle evidence container for reportIsConsistent
+                if (checkbox.value === 'reportIsConsistent') {
+                    const evidenceContainer = document.getElementById(`evidenceContainer-${subCommentId}`);
+                    if (evidenceContainer) {
+                        evidenceContainer.style.display = checkbox.checked ? 'block' : 'none';
+                    }
+                }
+                // Toggle document container for eventIsListed
+                if (checkbox.value === 'eventIsListed') {
+                    const documentContainer = document.getElementById(`documentContainer-${subCommentId}`);
+                    if (documentContainer) {
+                        documentContainer.style.display = checkbox.checked ? 'block' : 'none';
+                    }
+                }
+                updateSubCommentPreview(subCommentId);
+            });
+        });
+        
+        // Add event listeners for evidence checkboxes
+        const evidenceCheckboxes = checkboxesDiv.querySelectorAll('.sub-evidence');
+        evidenceCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => updateSubCommentPreview(subCommentId));
+        });
+        
+        // Add event listeners for document checkboxes
+        const documentCheckboxes = checkboxesDiv.querySelectorAll('.sub-document');
+        documentCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', () => updateSubCommentPreview(subCommentId));
         });
     } else {
@@ -977,12 +1121,21 @@ function updateSubCommentPreview(subCommentId) {
     const justifications = Array.from(section.querySelectorAll(`.sub-justification[data-sub-id="${subCommentId}"]:checked`))
         .map(checkbox => checkbox.value);
     
+    const evidences = Array.from(section.querySelectorAll(`.sub-evidence[data-sub-id="${subCommentId}"]:checked`))
+        .map(checkbox => checkbox.value);
+    
+    const documents = Array.from(section.querySelectorAll(`.sub-document[data-sub-id="${subCommentId}"]:checked`))
+        .map(checkbox => checkbox.value);
+    
+    const additionalNotesText = section.querySelector(`#additionalNotes-${subCommentId}`).value.trim();
+    const additionalNotesObj = { text: additionalNotesText, _evidences: evidences, _documents: documents };
+    
     const previewSection = section.querySelector('.sub-comment-preview');
     const previewText = section.querySelector('.sub-preview-text');
     
     // Only show preview if required fields are filled
     if (caseType && productNames && events && relatedness) {
-        const comment = generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes, freeText, followUpConsent);
+        const comment = generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotesObj, freeText, followUpConsent);
         previewText.textContent = comment;
         previewSection.classList.remove('hidden');
     } else {
@@ -998,14 +1151,27 @@ function collectSubCommentData() {
     sections.forEach(section => {
         const subCommentId = section.dataset.subCommentId;
         
+        const justifications = Array.from(section.querySelectorAll(`.sub-justification[data-sub-id="${subCommentId}"]:checked`))
+            .map(checkbox => checkbox.value);
+        
+        const evidences = Array.from(section.querySelectorAll(`.sub-evidence[data-sub-id="${subCommentId}"]:checked`))
+            .map(checkbox => checkbox.value);
+        
+        const documents = Array.from(section.querySelectorAll(`.sub-document[data-sub-id="${subCommentId}"]:checked`))
+            .map(checkbox => checkbox.value);
+        
+        const additionalNotesText = section.querySelector(`#additionalNotes-${subCommentId}`).value.trim();
+        const additionalNotesObj = additionalNotesText ? { text: additionalNotesText, _evidences: evidences, _documents: documents } : { _evidences: evidences, _documents: documents };
+        
         const data = {
             productNames: section.querySelector(`#productNames-${subCommentId}`).value.trim(),
             events: section.querySelector(`#events-${subCommentId}`).value.trim(),
             relatedness: section.querySelector(`#relatedness-${subCommentId}`).value,
             freeText: section.querySelector(`#freeTextComment-${subCommentId}`).value.trim(),
-            additionalNotes: section.querySelector(`#additionalNotes-${subCommentId}`).value.trim(),
-            justifications: Array.from(section.querySelectorAll(`.sub-justification[data-sub-id="${subCommentId}"]:checked`))
-                .map(checkbox => checkbox.value)
+            additionalNotes: additionalNotesObj,
+            evidences: evidences,
+            documents: documents,
+            justifications: justifications
         };
         
         // Only include if required fields are filled
@@ -1306,71 +1472,9 @@ function setupAutocomplete(inputElement, searchFunction, onSelect) {
     });
 }
 
-// Populate form with assessment data
-function populateFormWithAssessment(assessment) {
-    // Populate case information
-    document.getElementById('caseId').value = assessment.caseId;
-    document.getElementById('caseType').value = assessment.caseType;
-    document.getElementById('isLicensePartner').checked = assessment.isLicensePartner;
-    document.getElementById('followUpConsent').checked = assessment.followUpConsent || false;
-    
-    // Clear existing sub-comments
-    clearAllSubComments();
-    
-    // Check if this assessment has sub-comments data
-    if (assessment.subComments && assessment.subComments.length > 0) {
-        // Recreate sub-comments from saved data
-        assessment.subComments.forEach(subData => {
-            const section = addSubCommentSection();
-            const subCommentId = section.dataset.subCommentId;
-            
-            section.querySelector(`#productNames-${subCommentId}`).value = subData.productNames;
-            section.querySelector(`#events-${subCommentId}`).value = subData.events;
-            section.querySelector(`#relatedness-${subCommentId}`).value = subData.relatedness;
-            section.querySelector(`#freeTextComment-${subCommentId}`).value = subData.freeText || '';
-            section.querySelector(`#additionalNotes-${subCommentId}`).value = subData.additionalNotes || '';
-            
-            // Update justification options based on relatedness
-            updateJustificationOptions(subCommentId, subData.relatedness);
-            
-            // Set justifications after options are created
-            setTimeout(() => {
-                subData.justifications?.forEach(justValue => {
-                    const checkbox = section.querySelector(`.sub-justification[data-sub-id="${subCommentId}"][value="${justValue}"]`);
-                    if (checkbox) checkbox.checked = true;
-                });
-                // Update preview
-                updateSubCommentPreview(subCommentId);
-            }, 0);
-        });
-    } else {
-        // Legacy assessment without sub-comments - create one sub-comment with all data
-        const section = addSubCommentSection();
-        const subCommentId = section.dataset.subCommentId;
-        
-        section.querySelector(`#productNames-${subCommentId}`).value = assessment.productNames;
-        section.querySelector(`#events-${subCommentId}`).value = assessment.events;
-        section.querySelector(`#relatedness-${subCommentId}`).value = assessment.relatedness;
-        section.querySelector(`#freeTextComment-${subCommentId}`).value = assessment.freeTextComment || '';
-        section.querySelector(`#additionalNotes-${subCommentId}`).value = assessment.additionalNotes || '';
-        
-        // Update justification options based on relatedness
-        updateJustificationOptions(subCommentId, assessment.relatedness);
-        
-        // Set justifications after options are created
-        setTimeout(() => {
-            assessment.justifications?.forEach(justValue => {
-                const checkbox = section.querySelector(`.sub-justification[data-sub-id="${subCommentId}"][value="${justValue}"]`);
-                if (checkbox) checkbox.checked = true;
-            });
-            // Update preview
-            updateSubCommentPreview(subCommentId);
-        }, 0);
-    }
-
-    showNotification('Form populated with previous assessment data', 'success');
-}
-
+// ========================
+// Event Handlers
+// ========================
 // ========================
 // Event Handlers
 // ========================
@@ -1379,14 +1483,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await initDB();
         await loadAndDisplayRecords();
-
-        // Setup autocomplete for Case ID only
-        const caseIdInput = document.getElementById('caseId');
-
-        // Case ID autocomplete - retrieves and populates full assessment
-        setupAutocomplete(caseIdInput, searchCaseIds, (selectedAssessment) => {
-            populateFormWithAssessment(selectedAssessment);
-        });
 
         // Add Sub-Comment button
         document.getElementById('addSubComment').addEventListener('click', () => {
@@ -1438,7 +1534,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             // Combine all additional notes
             const allNotes = subCommentData
-                .map(d => d.additionalNotes)
+                .map(d => typeof d.additionalNotes === 'object' ? d.additionalNotes.text : d.additionalNotes)
                 .filter(n => n)
                 .join(' | ');
             
