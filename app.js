@@ -322,25 +322,18 @@ async function exportAssessments() {
             return;
         }
         
-        const headers = ['ID', 'Case ID', 'Case Type', 'Is License Partner', 'Follow-up Consent', 'Products', 'Events', 
-                        'Relatedness', 'Justifications', 'Additional Notes', 'Free Text Comment', 
-                        'Generated Comment', 'Timestamp', 'Sub Comments'];
+        const headers = ['DATE', 'CASE ID', 'CASE TYPE', 'FINAL GENERATED COMMENT', 'PRODUCTS', 'EVENTS', 'ASSESSMENT', 'FOLLOW UP', 'LP'];
         
         const rows = assessments.map(a => [
-            escapeCSV(a.id),
-            escapeCSV(a.caseId),
-            escapeCSV(a.caseType),
-            escapeCSV(a.isLicensePartner ? 'Yes' : 'No'),
-            escapeCSV(a.followUpConsent ? 'Yes' : 'No'),
+            escapeCSV(formatDate(a.timestamp)),
+            escapeCSV(a.caseId || 'N/A'),
+            escapeCSV(formatCaseType(a.caseType, false)),
+            escapeCSV(a.generatedComment),
             escapeCSV(a.productNames),
             escapeCSV(a.events),
-            escapeCSV(a.relatedness),
-            escapeCSV((a.justifications || []).join('; ')),
-            escapeCSV(a.additionalNotes),
-            escapeCSV(a.freeTextComment),
-            escapeCSV(a.generatedComment),
-            escapeCSV(new Date(a.timestamp).toISOString()),
-            escapeCSV(a.subComments ? JSON.stringify(a.subComments) : '')
+            escapeCSV(formatRelatedness(a.relatedness)),
+            escapeCSV(a.followUpConsent ? 'Yes' : 'No'),
+            escapeCSV(a.isLicensePartner ? 'Yes' : 'No')
         ]);
         
         const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
