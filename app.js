@@ -226,6 +226,18 @@ function deleteAssessment(id) {
     });
 }
 
+// Delete all assessments
+function deleteAllAssessments() {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_NAME], 'readwrite');
+        const objectStore = transaction.objectStore(STORE_NAME);
+        const request = objectStore.clear();
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
 function getAssessmentById(id) {
     return new Promise((resolve, reject) => {
         const transaction = db.transaction([STORE_NAME], 'readonly');
@@ -1747,6 +1759,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('exportEvents').addEventListener('click', (e) => {
             e.preventDefault();
             exportEvents();
+        });
+
+        // Delete all assessments button
+        document.getElementById('deleteAllBtn').addEventListener('click', async (e) => {
+            e.preventDefault();
+            if (confirm('Are you sure you want to delete ALL assessment records? This action cannot be undone. Products and Events history will be preserved.')) {
+                try {
+                    await deleteAllAssessments();
+                    await loadAndDisplayRecords();
+                    showNotification('All assessments deleted successfully. Products and Events history preserved.', 'success');
+                } catch (error) {
+                    console.error('Error deleting assessments:', error);
+                    showNotification('Error deleting assessments', 'error');
+                }
+            }
         });
 
         // Import buttons
