@@ -614,6 +614,15 @@ function generateComment(caseType, isLicensePartner, productNames, events, relat
                         justificationText = justificationText.replace(/{followUpText}/g, followUpText);
                     }
                     
+                    // Handle negative justifications with extraInfoJustifications
+                    if (relatedness === 'negative' && additionalNotes && additionalNotes._extraInfo && additionalNotes._extraInfo[justKey]) {
+                        const extraInfo = additionalNotes._extraInfo[justKey];
+                        justificationText = justificationText.replace(/{extraInfoJustifications}/g, extraInfo);
+                    } else {
+                        // Remove placeholder if no extra info provided
+                        justificationText = justificationText.replace(/{extraInfoJustifications}/g, '');
+                    }
+                    
                     // Handle reportIsConsistent with nested evidences
                     if (justKey === 'reportIsConsistent' && additionalNotes && additionalNotes._evidences) {
                         const evidences = additionalNotes._evidences;
@@ -939,13 +948,15 @@ function updateJustificationOptions(subCommentId, relatedness) {
                 { value: 'noAltExplanations', label: 'No Alternative Explanations' }
             ],
             negative: [
-                { value: 'medicalHistory', label: 'Medical History & Concomitant Medications' },
-                { value: 'temporalRelationship', label: 'Temporal Relationship' },
-                { value: 'dechallenge', label: 'Dechallenge' },
-                { value: 'rechallenge', label: 'Rechallenge' },
-                { value: 'alternativeEtiologies', label: 'Alternative Etiologies' },
+                { value: 'medicalHistory', label: 'Medical History & Concomitant Medications', hasExtraInfo: true },
+                { value: 'alternativeEtiologies', label: 'Alternative Etiologies', hasExtraInfo: true },
+                { value: 'coMedications', label: 'Concomitant Medications', hasExtraInfo: true },
+                { value: 'eventResolved', label: 'Event Resolved' },
+                { value: 'remoteTime', label: 'Remote Time', hasExtraInfo: true },
+                { value: 'rechallenge', label: 'Negative Rechallenge' },
                 { value: 'insufficientInformation', label: 'Insufficient Information' },
-                { value: 'listedness', label: 'Listedness' }
+                { value: 'listedness', label: 'Listedness' },
+                { value: 'notAdministered', label: 'Product Not Administered' }
             ]
         };
         
@@ -958,6 +969,44 @@ function updateJustificationOptions(subCommentId, relatedness) {
                 ${option.label}
             `;
             checkboxesDiv.appendChild(label);
+            
+            // Add nested text input for negative justifications with extraInfoJustifications
+            if (option.hasExtraInfo && relatedness === 'negative') {
+                const extraInfoContainer = document.createElement('div');
+                extraInfoContainer.className = 'nested-extrainfo-container';
+                extraInfoContainer.id = `extraInfoContainer-${subCommentId}-${option.value}`;
+                extraInfoContainer.style.display = 'none';
+                extraInfoContainer.style.marginLeft = '30px';
+                extraInfoContainer.style.marginTop = '10px';
+                extraInfoContainer.style.padding = '10px';
+                extraInfoContainer.style.border = '1px solid #e2e8f0';
+                extraInfoContainer.style.borderRadius = '4px';
+                extraInfoContainer.style.backgroundColor = '#f8fafc';
+                
+                const extraInfoLabel = document.createElement('label');
+                extraInfoLabel.style.fontWeight = '600';
+                extraInfoLabel.style.marginBottom = '8px';
+                extraInfoLabel.style.color = '#475569';
+                extraInfoLabel.style.display = 'block';
+                extraInfoLabel.textContent = 'Additional Information:';
+                extraInfoContainer.appendChild(extraInfoLabel);
+                
+                const extraInfoInput = document.createElement('input');
+                extraInfoInput.type = 'text';
+                extraInfoInput.className = 'sub-extrainfo';
+                extraInfoInput.id = `extraInfo-${subCommentId}-${option.value}`;
+                extraInfoInput.dataset.subId = subCommentId;
+                extraInfoInput.dataset.justification = option.value;
+                extraInfoInput.placeholder = 'Enter additional details...';
+                extraInfoInput.style.width = '100%';
+                extraInfoInput.style.padding = '8px';
+                extraInfoInput.style.border = '1px solid #cbd5e1';
+                extraInfoInput.style.borderRadius = '4px';
+                extraInfoInput.style.fontSize = '14px';
+                extraInfoContainer.appendChild(extraInfoInput);
+                
+                checkboxesDiv.appendChild(extraInfoContainer);
+            }
             
             // Add nested evidences container for reportIsConsistent
             if (option.value === 'reportIsConsistent' && relatedness === 'positive') {
@@ -1063,6 +1112,11 @@ function updateJustificationOptions(subCommentId, relatedness) {
                         documentContainer.style.display = checkbox.checked ? 'block' : 'none';
                     }
                 }
+                // Toggle extra info container for negative justifications
+                const extraInfoContainer = document.getElementById(`extraInfoContainer-${subCommentId}-${checkbox.value}`);
+                if (extraInfoContainer) {
+                    extraInfoContainer.style.display = checkbox.checked ? 'block' : 'none';
+                }
                 updateSubCommentPreview(subCommentId);
             });
         });
@@ -1077,6 +1131,12 @@ function updateJustificationOptions(subCommentId, relatedness) {
         const documentCheckboxes = checkboxesDiv.querySelectorAll('.sub-document');
         documentCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', () => updateSubCommentPreview(subCommentId));
+        });
+        
+        // Add event listeners for extra info text inputs
+        const extraInfoInputs = checkboxesDiv.querySelectorAll('.sub-extrainfo');
+        extraInfoInputs.forEach(input => {
+            input.addEventListener('input', () => updateSubCommentPreview(subCommentId));
         });
     } else {
         // Hide justification container for other relatedness values
@@ -1127,8 +1187,19 @@ function updateSubCommentPreview(subCommentId) {
     const documents = Array.from(section.querySelectorAll(`.sub-document[data-sub-id="${subCommentId}"]:checked`))
         .map(checkbox => checkbox.value);
     
+    // Collect extra info for each justification
+    const extraInfo = {};
+    const extraInfoInputs = section.querySelectorAll(`.sub-extrainfo[data-sub-id="${subCommentId}"]`);
+    extraInfoInputs.forEach(input => {
+        const justification = input.dataset.justification;
+        const value = input.value.trim();
+        if (value) {
+            extraInfo[justification] = value;
+        }
+    });
+    
     const additionalNotesText = section.querySelector(`#additionalNotes-${subCommentId}`).value.trim();
-    const additionalNotesObj = { text: additionalNotesText, _evidences: evidences, _documents: documents };
+    const additionalNotesObj = { text: additionalNotesText, _evidences: evidences, _documents: documents, _extraInfo: extraInfo };
     
     const previewSection = section.querySelector('.sub-comment-preview');
     const previewText = section.querySelector('.sub-preview-text');
@@ -1160,8 +1231,21 @@ function collectSubCommentData() {
         const documents = Array.from(section.querySelectorAll(`.sub-document[data-sub-id="${subCommentId}"]:checked`))
             .map(checkbox => checkbox.value);
         
+        // Collect extra info for each justification
+        const extraInfo = {};
+        const extraInfoInputs = section.querySelectorAll(`.sub-extrainfo[data-sub-id="${subCommentId}"]`);
+        extraInfoInputs.forEach(input => {
+            const justification = input.dataset.justification;
+            const value = input.value.trim();
+            if (value) {
+                extraInfo[justification] = value;
+            }
+        });
+        
         const additionalNotesText = section.querySelector(`#additionalNotes-${subCommentId}`).value.trim();
-        const additionalNotesObj = additionalNotesText ? { text: additionalNotesText, _evidences: evidences, _documents: documents } : { _evidences: evidences, _documents: documents };
+        const additionalNotesObj = additionalNotesText 
+            ? { text: additionalNotesText, _evidences: evidences, _documents: documents, _extraInfo: extraInfo } 
+            : { _evidences: evidences, _documents: documents, _extraInfo: extraInfo };
         
         const data = {
             productNames: section.querySelector(`#productNames-${subCommentId}`).value.trim(),
@@ -1171,6 +1255,7 @@ function collectSubCommentData() {
             additionalNotes: additionalNotesObj,
             evidences: evidences,
             documents: documents,
+            extraInfo: extraInfo,
             justifications: justifications
         };
         
