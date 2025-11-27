@@ -322,7 +322,7 @@ async function exportAssessments() {
             return;
         }
         
-        const headers = ['ID', 'Case ID', 'Case Type', 'Is License Partner', 'Products', 'Events', 
+        const headers = ['ID', 'Case ID', 'Case Type', 'Is License Partner', 'Follow-up Consent', 'Products', 'Events', 
                         'Relatedness', 'Justifications', 'Additional Notes', 'Free Text Comment', 
                         'Generated Comment', 'Timestamp', 'Sub Comments'];
         
@@ -331,6 +331,7 @@ async function exportAssessments() {
             escapeCSV(a.caseId),
             escapeCSV(a.caseType),
             escapeCSV(a.isLicensePartner ? 'Yes' : 'No'),
+            escapeCSV(a.followUpConsent ? 'Yes' : 'No'),
             escapeCSV(a.productNames),
             escapeCSV(a.events),
             escapeCSV(a.relatedness),
@@ -423,8 +424,8 @@ async function importAssessments(file) {
             
             let subComments = [];
             try {
-                if (row[12]) {
-                    subComments = JSON.parse(row[12]);
+                if (row[13]) {
+                    subComments = JSON.parse(row[13]);
                 }
             } catch (e) {
                 console.warn('Could not parse subComments for row:', e);
@@ -434,14 +435,15 @@ async function importAssessments(file) {
                 caseId: row[1],
                 caseType: row[2],
                 isLicensePartner: row[3].toLowerCase() === 'yes',
-                productNames: row[4],
-                events: row[5],
-                relatedness: row[6],
-                justifications: row[7] ? row[7].split('; ').filter(j => j) : [],
-                additionalNotes: row[8],
-                freeTextComment: row[9],
-                generatedComment: row[10],
-                timestamp: row[11] ? new Date(row[11]).getTime() : Date.now(),
+                followUpConsent: row[4] && row[4].toLowerCase() === 'yes',
+                productNames: row[5],
+                events: row[6],
+                relatedness: row[7],
+                justifications: row[8] ? row[8].split('; ').filter(j => j) : [],
+                additionalNotes: row[9],
+                freeTextComment: row[10],
+                generatedComment: row[11],
+                timestamp: row[12] ? new Date(row[12]).getTime() : Date.now(),
                 subComments: subComments
             };
             
@@ -539,27 +541,34 @@ const commentTemplates = {
     },
     justifications: {
         positive: {
-            medicalHistory: "The subject's medical history, including pre-existing conditions and concomitant medications, supports the assessment of a potential causal relationship between the product and the reported event.",
-            temporalRelationship: "The temporal relationship between product administration and event onset is consistent with a potential causal relationship.",
-            dechallenge: "positive dechallenge",
-            rechallenge: "Information regarding dechallenge and rechallenge supports the likelihood of a causal relationship.",
-            alternativeEtiologies: "No alternative etiologies for the reported event have been identified, strengthening the potential causal relationship.",
-            insufficientInformation: "Despite limited information, available data supports a potential causal relationship.",
-            listedness: "The reported event is listed in the product's reference safety information, supporting a potential causal relationship."
+            reportIsConsistent: "The case has a probable causal relation based on",
+            consistentEvidences: {
+            timeToOnset:"plausible time to onset",
+            biologicalPlausibility: "biological plausibility",
+            noAltEtiology: "absence of alternative etiologies",
+            populationBased: "known population-based causal relation",
+            positiveRechallenge: "positive rechallenge",
+            specificTest: "specific test proving causality",
+
         },
+            eventIsListed: "The reported event is listed in the product's {RSI}",
+            noAltExplanations: "no alternative explanations  were identified.",
+    },
         negative: {
-            medicalHistory: "The subject's medical history, including pre-existing conditions and concomitant medications, has been reviewed and considered in the assessment of the reported event.",
-            temporalRelationship: "The temporal relationship between product administration and event onset has been evaluated to determine potential causality.",
-            dechallenge: "negative dechallenge",
-            rechallenge: "Information regarding dechallenge and rechallenge has been analyzed to assess the likelihood of a causal relationship.",
-            alternativeEtiologies: "Potential alternative etiologies for the reported event have been explored and documented.",
-            insufficientInformation: "The available information is insufficient to draw definitive conclusions regarding the relationship between the product and the reported event.",
-            listedness: "The reported event is not listed in the product's reference safety information, which has been taken into consideration during the assessment."
+            medicalHistory: "The subject's medical history, has been reviewed and considered in the assessment of the reported event. {extraInfoJustifications}.",
+            alternativeEtiologies: "Potential alternative etiologies {extraInfoJustifications}.",
+            coMedications: "The role of concomitant medications {extraInfoJustifications} is considered as a possible cause.",
+            eventResolved: "The event resolved without any changes to the product administration.",
+            remoteTime: "The time between {extraInfoJustifications} product administration and event onset is not consistent with a causal relationship.",
+            rechallenge: "negative rechallenge",
+            insufficientInformation: "Not enough info. {followUpText}",
+            listedness: "The reported event is not listed in the product's reference safety information, which has been taken into consideration during the assessment.",
+            notAdministered: "The product was not administered to the subject."
         }
     }
 };
 
-function generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes, freeTextComment) {
+function generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes, freeTextComment, followUpConsent) {
     // Get the main template
     let template = commentTemplates[caseType]?.[relatedness];
     
@@ -592,7 +601,17 @@ function generateComment(caseType, isLicensePartner, productNames, events, relat
         if (justificationTemplates) {
             justifications.forEach((justKey, index) => {
                 if (justificationTemplates[justKey]) {
-                    comment += justificationTemplates[justKey];
+                    let justificationText = justificationTemplates[justKey];
+                    
+                    // Handle insufficient information justification with follow-up consent
+                    if (justKey === 'insufficientInformation') {
+                        const followUpText = followUpConsent 
+                            ? 'Follow-up has been sought.' 
+                            : 'No follow-up possible.';
+                        justificationText = justificationText.replace(/{followUpText}/g, followUpText);
+                    }
+                    
+                    comment += justificationText;
                     if (index < justifications.length - 1) {
                         comment += " ";
                     }
@@ -948,6 +967,7 @@ function updateSubCommentPreview(subCommentId) {
     
     const caseType = document.getElementById('caseType').value;
     const isLicensePartner = document.getElementById('isLicensePartner').checked;
+    const followUpConsent = document.getElementById('followUpConsent').checked;
     const productNames = section.querySelector(`#productNames-${subCommentId}`).value.trim();
     const events = section.querySelector(`#events-${subCommentId}`).value.trim();
     const relatedness = section.querySelector(`#relatedness-${subCommentId}`).value;
@@ -962,7 +982,7 @@ function updateSubCommentPreview(subCommentId) {
     
     // Only show preview if required fields are filled
     if (caseType && productNames && events && relatedness) {
-        const comment = generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes, freeText);
+        const comment = generateComment(caseType, isLicensePartner, productNames, events, relatedness, justifications, additionalNotes, freeText, followUpConsent);
         previewText.textContent = comment;
         previewSection.classList.remove('hidden');
     } else {
@@ -1001,6 +1021,7 @@ function collectSubCommentData() {
 function generateCombinedComment() {
     const caseType = document.getElementById('caseType').value;
     const isLicensePartner = document.getElementById('isLicensePartner').checked;
+    const followUpConsent = document.getElementById('followUpConsent').checked;
     const subCommentData = collectSubCommentData();
     
     if (!caseType || subCommentData.length === 0) {
@@ -1016,7 +1037,8 @@ function generateCombinedComment() {
             data.relatedness,
             data.justifications,
             data.additionalNotes,
-            data.freeText
+            data.freeText,
+            followUpConsent
         );
     });
     
@@ -1132,6 +1154,7 @@ async function viewAssessment(id) {
         document.getElementById('modalCaseId').textContent = assessment.caseId || 'N/A';
         document.getElementById('modalCaseType').textContent = formatCaseType(assessment.caseType, assessment.isLicensePartner);
         document.getElementById('modalCompanyName').textContent = assessment.isLicensePartner ? 'Yes' : 'No';
+        document.getElementById('modalFollowUpConsent').textContent = assessment.followUpConsent ? 'Yes' : 'No';
         document.getElementById('modalProduct').textContent = assessment.productNames;
         document.getElementById('modalEvents').textContent = assessment.events;
         document.getElementById('modalRelatedness').textContent = formatRelatedness(assessment.relatedness);
@@ -1289,6 +1312,7 @@ function populateFormWithAssessment(assessment) {
     document.getElementById('caseId').value = assessment.caseId;
     document.getElementById('caseType').value = assessment.caseType;
     document.getElementById('isLicensePartner').checked = assessment.isLicensePartner;
+    document.getElementById('followUpConsent').checked = assessment.followUpConsent || false;
     
     // Clear existing sub-comments
     clearAllSubComments();
@@ -1372,6 +1396,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Initialize with one sub-comment section
         addSubCommentSection();
 
+        // Add event listener for followUpConsent changes to update previews
+        document.getElementById('followUpConsent').addEventListener('change', () => {
+            // Update all sub-comment previews
+            const allSections = document.querySelectorAll('.sub-comment-section');
+            allSections.forEach(section => {
+                updateSubCommentPreview(section.dataset.subCommentId);
+            });
+        });
+
         // Comment form submission - Generate combined comment
         document.getElementById('commentForm').addEventListener('submit', (e) => {
             e.preventDefault();
@@ -1379,6 +1412,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const caseId = document.getElementById('caseId').value.trim();
             const caseType = document.getElementById('caseType').value;
             const isLicensePartner = document.getElementById('isLicensePartner').checked;
+            const followUpConsent = document.getElementById('followUpConsent').checked;
             
             if (!caseType) {
                 showNotification('Please select a Case Type', 'error');
@@ -1418,6 +1452,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 caseId,
                 caseType,
                 isLicensePartner,
+                followUpConsent,
                 productNames: allProducts,
                 events: allEvents,
                 relatedness: finalRelatedness,
